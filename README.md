@@ -2,10 +2,6 @@
 This repository provides the code for our research project "PERGAT: Pretrained Embeddings of Graph Neural Networks for miRNA-Cancer Association Predictions".
 
 
-└── main.py
-
-
-python link_prediction_gat/main.py --in-feats 256 --out-feats 256 --num-heads 8 --num-layers 2 --lr 0.001 --input-size 2 --hidden-size 16 --feat-drop 0.5 --attn-drop 0.5 --epochs 1000    
 
 ## Data resources
 The different dataset and KG used in this project are located in data directory. These files include:
@@ -29,4 +25,5 @@ The different dataset and KG used in this project are located in data directory.
 python link_prediction_gat/main.py --in-feats 256 --out-feats 256 --num-heads 8 --num-layers 2 --lr 0.001 --input-size 2 --hidden-size 16 --feat-drop 0.5 --attn-drop 0.5 --epochs 1000    
 
 #### residual=true
-python link_prediction_gat/main.py --out-feats 128 --num-heads 2 --num-layers 2 --lr 0.01 --input-size 2 --hidden-size 16 --feat-drop 0.1 --attn-drop 0.1 --epochs 503
+python prediction/main.py --in-feats 256 --out-feats 256 --num-heads 8 --num-layers 2 --lr 0.001 --input-size 2 --hidden-size 16 --feat-drop 0.5 --attn-drop 0.5 --epochs 1000    
+
