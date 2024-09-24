@@ -5,7 +5,7 @@ This repository provides the code for our research project "PERGAT: Pretrained E
 └── main.py
 
 
-## python link_prediction_gat/main.py --in-feats 256 --out-feats 256 --num-heads 8 --num-layers 2 --lr 0.001 --input-size 2 --hidden-size 16 --feat-drop 0.5 --attn-drop 0.5 --epochs 1000    
+python link_prediction_gat/main.py --in-feats 256 --out-feats 256 --num-heads 8 --num-layers 2 --lr 0.001 --input-size 2 --hidden-size 16 --feat-drop 0.5 --attn-drop 0.5 --epochs 1000    
 
 ## Data resources
 The different dataset and KG used in this project are located in data directory. These files include:
