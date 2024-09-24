@@ -1,22 +1,7 @@
-# A Biological Knowledge Graph for Representational Learning 
-This repository provides the code for our research project "A Biological Knowledge Graph for Representational Learning".
+# PERGAT: Pretrained Embeddings of Graph Neural Networks for miRNA-Cancer Association Predictions
+This repository provides the code for our research project "PERGAT: Pretrained Embeddings of Graph Neural Networks for miRNA-Cancer Association Predictions".
 
 
-
-edge_prediction_project/
-│
-├── data/
-│   └── neo4j_graph.json
-│
-├── results/
-│
-├── src/
-│   ├── __init__.py
-│   ├── data_loader.py
-│   ├── models.py
-│   ├── utils.py
-│   └── train.py
-│
 └── main.py
 
 
