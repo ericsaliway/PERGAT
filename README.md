@@ -22,8 +22,6 @@ The different dataset and KG used in this project are located in data directory.
 
 ## Get start
 
-python link_prediction_gat/main.py --in-feats 256 --out-feats 256 --num-heads 8 --num-layers 2 --lr 0.001 --input-size 2 --hidden-size 16 --feat-drop 0.5 --attn-drop 0.5 --epochs 1000    
 
-#### residual=true
 python prediction/main.py --in-feats 256 --out-feats 256 --num-heads 8 --num-layers 2 --lr 0.001 --input-size 2 --hidden-size 16 --feat-drop 0.5 --attn-drop 0.5 --epochs 1000    
 
