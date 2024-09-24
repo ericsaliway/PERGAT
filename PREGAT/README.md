@@ -1,5 +1,5 @@
 # PERGAT: Pretrained Embeddings of Graph Neural Networks for miRNA-Cancer Association Predictions 
-This repository provides the code for our research project "A Biological Knowledge Graph for Representational Learning".
+This repository provides the code for our research project "PERGAT: Pretrained Embeddings of Graph Neural Networks for miRNA-Cancer Association Predictions".
 
 
 
