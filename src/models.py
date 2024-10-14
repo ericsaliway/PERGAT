@@ -175,8 +175,6 @@ class GATModel(nn.Module):
         ##logits = self.sigmoid(logits)
         return logits
 
-
-
 class FocalLoss(nn.Module):
     def __init__(self, alpha=1, gamma=2, reduction='mean'):
         super(FocalLoss, self).__init__()
