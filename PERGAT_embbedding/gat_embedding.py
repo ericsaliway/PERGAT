@@ -70,22 +70,5 @@ if __name__ == '__main__':
 
     main()
 
-<<<<<<< HEAD
 
 ## PERGAT_embbedding % python gat_embedding.py --in_feats 256 --out_feats 256 --num_layers 2 --num_heads 2 --batch_size 1 --lr 0.0001 --num_epochs 106## 
-
-'''install on mac os without gpu
-
-conda create -n gnn python=3.11 -y
-conda activate gnn 
-conda install pytorch::pytorch torchvision torchaudio -c pytorch
-pip install pandas
-pip install py2neo pandas matplotlib scikit-learn
-pip install tqdm
-conda install -c dglteam dgl
-pip install seaborn
-
-'''
-=======
-## python gat/gat_embedding.py --in_feats 256 --out_feats 256 --num_layers 2 --num_heads 2 --batch_size 1 --lr 0.0001 --num_epochs 105
->>>>>>> 007709138d8c23aac23bc2af32000b59e982b983
