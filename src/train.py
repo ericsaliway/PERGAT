@@ -58,7 +58,7 @@ def train_and_evaluate(args, G_dgl, node_features, node_id_to_name):
     
     ##kf = KFold(n_splits=5, shuffle=True, random_state=66)
     kf = KFold(n_splits=5, shuffle=True)
-    output_path = './link_prediction_gat/results/'
+    output_path = 'results/'
     os.makedirs(output_path, exist_ok=True)
 
     for fold, (train_idx, test_idx) in enumerate(kf.split(eids)):
@@ -316,7 +316,7 @@ def train_and_evaluate(args, G_dgl, node_features, node_id_to_name):
         save_dataframe(df_top_v, filename_v)
 
         # Load reference data
-        file2 = 'gat/data/_combined_hmdd_miR2Disease_miRNA_disease.csv'
+        file2 = 'data/_combined_hmdd_miR2Disease_miRNA_disease.csv'
         df2 = pd.read_csv(file2)
 
         # Merge top predictions with reference data

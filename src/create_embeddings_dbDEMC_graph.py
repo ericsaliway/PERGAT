@@ -2,10 +2,10 @@ import csv
 import json
 
 # File paths
-mirna_csv_path = 'gat/data/_miRNA_embeddings_dbDEMC.csv'
-disease_csv_path = 'gat/data/_disease_embeddings_dbDEMC_updated.csv'
-relation_csv_path = 'gat/data/_filtered_dbDEMC_Homo_sapiens.csv'
-output_json_path = 'gat/data/_miRNA_disease_embeddings_dbDEMC_v3.json'
+mirna_csv_path = 'data/_miRNA_embeddings_dbDEMC.csv'
+disease_csv_path = 'data/_disease_embeddings_dbDEMC_updated.csv'
+relation_csv_path = 'data/_filtered_dbDEMC_Homo_sapiens.csv'
+output_json_path = 'data/_miRNA_disease_embeddings_dbDEMC_v3.json'
 
 # Function to read embeddings from a CSV file
 def read_embeddings(file_path):
