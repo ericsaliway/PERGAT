@@ -97,7 +97,11 @@ def save_embeddings_to_json(file_path, miRNA_data, disease_data):
     with open(file_path, 'w') as f:
         json.dump(data, f, indent=2)
 
+<<<<<<< HEAD
 def train(hyperparams=None, data_path='data/emb', plot=True):
+=======
+def train(hyperparams=None, data_path='gat/data/emb', plot=True):
+>>>>>>> 007709138d8c23aac23bc2af32000b59e982b983
     num_epochs = hyperparams['num_epochs']
     feat_drop = hyperparams['feat_drop']
     in_feats = hyperparams['in_feats']
@@ -145,7 +149,11 @@ def train(hyperparams=None, data_path='data/emb', plot=True):
     max_f1_scores_train = []
     max_f1_scores_valid = []
     
+<<<<<<< HEAD
     results_path = 'results/node_embeddings/'
+=======
+    results_path = 'gat/results/node_embeddings/'
+>>>>>>> 007709138d8c23aac23bc2af32000b59e982b983
     os.makedirs(results_path, exist_ok=True)
     
     ##all_miRNA_embeddings, miRNA_cluster_labels, miRNA_names, all_disease_embeddings, disease_cluster_labels, disease_names = (net, dl_train, device, 4)
@@ -486,6 +494,7 @@ def train(hyperparams=None, data_path='data/emb', plot=True):
     ## save_to_neo4j(graph_train, miRNA_dic, miRNA_mapping, pathway_map, gene_id_to_name_mapping, gene_id_to_symbol_mapping, neo4j_uri, neo4j_user, neo4j_password)
     
     miRNA_embeddings_initial = pd.DataFrame.from_dict(miRNA_dic_initial, orient='index')
+<<<<<<< HEAD
     miRNA_embeddings_initial.to_csv('data/miRNA_embeddings_initial.csv', index_label='miRNA')
 
     miRNA_embeddings = pd.DataFrame.from_dict(miRNA_dic, orient='index')
@@ -496,6 +505,18 @@ def train(hyperparams=None, data_path='data/emb', plot=True):
 
     disease_embeddings = pd.DataFrame.from_dict(disease_dic, orient='index')
     disease_embeddings.to_csv('data/pretrain_disease_embeddings.csv', index_label='disease')
+=======
+    miRNA_embeddings_initial.to_csv('gat/data/miRNA_embeddings_initial.csv', index_label='miRNA')
+
+    miRNA_embeddings = pd.DataFrame.from_dict(miRNA_dic, orient='index')
+    miRNA_embeddings.to_csv('gat/data/pretrain_miRNA_embeddings.csv', index_label='miRNA')
+    
+    disease_embeddings_initial = pd.DataFrame.from_dict(disease_dic_initial, orient='index')
+    disease_embeddings_initial.to_csv('gat/data/disease_embeddings_initial.csv', index_label='disease')
+
+    disease_embeddings = pd.DataFrame.from_dict(disease_dic, orient='index')
+    disease_embeddings.to_csv('gat/data/pretrain_disease_embeddings.csv', index_label='disease')
+>>>>>>> 007709138d8c23aac23bc2af32000b59e982b983
     
     return model_path
 

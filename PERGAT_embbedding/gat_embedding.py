@@ -5,9 +5,15 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser(description='Create embeddings and save to disk.')
+<<<<<<< HEAD
     parser.add_argument('--data_dir', type=str, default='data/emb', help='Directory to save the data.')
     ##parser.add_argument('--data_dir', type=str, default='gcn/data/emb', help='Directory to save the data.')
     parser.add_argument('--output-file', type=str, default='data/emb/embeddings.pkl', help='File to save the embeddings')
+=======
+    parser.add_argument('--data_dir', type=str, default='gat/data/emb', help='Directory to save the data.')
+    ##parser.add_argument('--data_dir', type=str, default='gcn/data/emb', help='Directory to save the data.')
+    parser.add_argument('--output-file', type=str, default='gat/data/emb/embeddings.pkl', help='File to save the embeddings')
+>>>>>>> 007709138d8c23aac23bc2af32000b59e982b983
     parser.add_argument('--p_value', type=float, default=0.05, help='P-value threshold for creating embeddings.')
     parser.add_argument('--save', type=bool, default=True, help='Flag to save embeddings.')
     parser.add_argument('--num_epochs', type=int, default=5000, help='Number of epochs for training.')
@@ -64,6 +70,7 @@ if __name__ == '__main__':
 
     main()
 
+<<<<<<< HEAD
 
 ## PERGAT_embbedding % python gat_embedding.py --in_feats 256 --out_feats 256 --num_layers 2 --num_heads 2 --batch_size 1 --lr 0.0001 --num_epochs 106## 
 
@@ -79,3 +86,6 @@ conda install -c dglteam dgl
 pip install seaborn
 
 '''
+=======
+## python gat/gat_embedding.py --in_feats 256 --out_feats 256 --num_layers 2 --num_heads 2 --batch_size 1 --lr 0.0001 --num_epochs 105
+>>>>>>> 007709138d8c23aac23bc2af32000b59e982b983
