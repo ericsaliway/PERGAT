@@ -13,11 +13,25 @@ The different dataset and KG used in this project are located in data directory.
 
 
 ## Setup
--)conda create -n kg python=3.10 -y
 
--)conda activate kg
+-) conda create -n gnn python=3.11 -y
 
--)pip install -r requirements.txt
+-) conda activate gnn 
+
+-) conda install pytorch::pytorch torchvision torchaudio -c pytorch
+
+-) pip install pandas
+
+-) pip install py2neo pandas matplotlib scikit-learn
+
+-) pip install tqdm
+
+-) conda install -c dglteam dgl
+
+-) pip install seaborn
+
+##
+pip install -r requirements.txt
 
 
 ## Get start
