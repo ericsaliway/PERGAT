@@ -494,7 +494,6 @@ def train(hyperparams=None, data_path='gat/data/emb', plot=True):
     ## save_to_neo4j(graph_train, miRNA_dic, miRNA_mapping, pathway_map, gene_id_to_name_mapping, gene_id_to_symbol_mapping, neo4j_uri, neo4j_user, neo4j_password)
     
     miRNA_embeddings_initial = pd.DataFrame.from_dict(miRNA_dic_initial, orient='index')
-<<<<<<< HEAD
     miRNA_embeddings_initial.to_csv('data/miRNA_embeddings_initial.csv', index_label='miRNA')
 
     miRNA_embeddings = pd.DataFrame.from_dict(miRNA_dic, orient='index')
@@ -505,18 +504,6 @@ def train(hyperparams=None, data_path='gat/data/emb', plot=True):
 
     disease_embeddings = pd.DataFrame.from_dict(disease_dic, orient='index')
     disease_embeddings.to_csv('data/pretrain_disease_embeddings.csv', index_label='disease')
-=======
-    miRNA_embeddings_initial.to_csv('gat/data/miRNA_embeddings_initial.csv', index_label='miRNA')
-
-    miRNA_embeddings = pd.DataFrame.from_dict(miRNA_dic, orient='index')
-    miRNA_embeddings.to_csv('gat/data/pretrain_miRNA_embeddings.csv', index_label='miRNA')
-    
-    disease_embeddings_initial = pd.DataFrame.from_dict(disease_dic_initial, orient='index')
-    disease_embeddings_initial.to_csv('gat/data/disease_embeddings_initial.csv', index_label='disease')
-
-    disease_embeddings = pd.DataFrame.from_dict(disease_dic, orient='index')
-    disease_embeddings.to_csv('gat/data/pretrain_disease_embeddings.csv', index_label='disease')
->>>>>>> 007709138d8c23aac23bc2af32000b59e982b983
     
     return model_path
 
