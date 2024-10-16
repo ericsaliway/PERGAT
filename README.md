@@ -6,20 +6,26 @@ This repository provides the code for our research project "PERGAT: Pretrained E
 ## Data resources
 The different dataset and KG used in this project are located in data directory. These files include:
 
--) The data about pathways from https://reactome.org/download/current/ReactomePathways.txt, relationships between pathways from https://reactome.org/download/current/ReactomePathwaysRelation.txt and pathway-protein relations from https://reactome.org/download/current/NCBI2Reactome.txt on 24 March 2024.
-
--) The built knowledge graph including pathway-pathway and pathway-protein relationships.
-
 -) https://www.biosino.org/dbDEMC/index
 
 
 ## Setup
 
--) The data about pathways from https://reactome.org/download/current/ReactomePathways.txt, relationships between pathways from https://reactome.org/download/current/ReactomePathwaysRelation.txt and pathway-protein relations from https://reactome.org/download/current/NCBI2Reactome.txt on 24 March 2024.
+-) conda create -n gnn python=3.11 -y
 
--) The built knowledge graph including pathway-pathway and pathway-protein relationships.
+-) conda activate gnn 
 
+-) conda install pytorch::pytorch torchvision torchaudio -c pytorch
 
+-) pip install pandas
+
+-) pip install py2neo pandas matplotlib scikit-learn
+
+-) pip install tqdm
+
+-) conda install -c dglteam dgl
+
+-) pip install seaborn
 
 ## Get start
 ## get embedding
