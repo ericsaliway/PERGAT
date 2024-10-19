@@ -15,7 +15,7 @@ from tqdm import tqdm
 import pandas as pd
 import torch
 import torch.nn as nn
-from src.utils import create_graphs
+##from src.utils import create_graphs
 from src.plot import (populate_miRNA_dic, 
                     populate_disease_dic, 
                     create_heatmap, 
@@ -97,11 +97,7 @@ def save_embeddings_to_json(file_path, miRNA_data, disease_data):
     with open(file_path, 'w') as f:
         json.dump(data, f, indent=2)
 
-<<<<<<< HEAD
 def train(hyperparams=None, data_path='data/emb', plot=True):
-=======
-def train(hyperparams=None, data_path='gat/data/emb', plot=True):
->>>>>>> 007709138d8c23aac23bc2af32000b59e982b983
     num_epochs = hyperparams['num_epochs']
     feat_drop = hyperparams['feat_drop']
     in_feats = hyperparams['in_feats']
@@ -123,17 +119,17 @@ def train(hyperparams=None, data_path='gat/data/emb', plot=True):
     dl_train = GraphDataLoader(ds_train, batch_size=batch_size, shuffle=True)
     dl_valid = GraphDataLoader(ds_valid, batch_size=batch_size, shuffle=False)
 
-    '''net = GATModel(in_feats=in_feats, out_feats=out_feats, num_layers=num_layers, num_heads=num_heads, do_train=True).to(device)
+    net = GATModel(in_feats=in_feats, out_feats=out_feats, num_layers=num_layers, num_heads=num_heads, do_train=True).to(device)
     optimizer = optim.Adam(net.parameters(), lr=learning_rate)
 
     best_model = GATModel(in_feats=in_feats, out_feats=out_feats, num_layers=num_layers, num_heads=num_heads, do_train=True)
-    best_model.load_state_dict(copy.deepcopy(net.state_dict()))'''
+    best_model.load_state_dict(copy.deepcopy(net.state_dict()))
     
-    net = GCNModel(out_feats, num_layers, do_train=True).to(device)
+    '''net = GCNModel(out_feats, num_layers, do_train=True).to(device)
     optimizer = optim.Adam(net.parameters(), lr=learning_rate)
 
     best_model = GCNModel(out_feats, num_layers, do_train=True)
-    best_model.load_state_dict(copy.deepcopy(net.state_dict()))
+    best_model.load_state_dict(copy.deepcopy(net.state_dict()))'''
 
     loss_per_epoch_train, loss_per_epoch_valid = [], []
     f1_per_epoch_train, f1_per_epoch_valid = [], []
@@ -149,11 +145,7 @@ def train(hyperparams=None, data_path='gat/data/emb', plot=True):
     max_f1_scores_train = []
     max_f1_scores_valid = []
     
-<<<<<<< HEAD
     results_path = 'results/node_embeddings/'
-=======
-    results_path = 'gat/results/node_embeddings/'
->>>>>>> 007709138d8c23aac23bc2af32000b59e982b983
     os.makedirs(results_path, exist_ok=True)
     
     ##all_miRNA_embeddings, miRNA_cluster_labels, miRNA_names, all_disease_embeddings, disease_cluster_labels, disease_names = (net, dl_train, device, 4)

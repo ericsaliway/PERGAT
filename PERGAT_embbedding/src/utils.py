@@ -107,15 +107,9 @@ def save_miRNA_to_csv(graph, save_dir):
     csv_path = os.path.join(save_dir, 'miRNA_nodes.csv')
     df.to_csv(csv_path, index=False)
 
-<<<<<<< HEAD
 def create_graphs(save=True, data_dir='data/emb'):
     graph_train = create_network('data/mirna_p_value_results_dbDEMC_train.csv', 'emb_train')
     graph_test = create_network('data/mirna_p_value_results_dbDEMC_test.csv', 'emb_test')
-=======
-def create_graphs(save=True, data_dir='gat/data/emb'):
-    graph_train = create_network('gat/data/mirna_p_value_results_dbDEMC_train.csv', 'emb_train')
-    graph_test = create_network('gat/data/mirna_p_value_results_dbDEMC_test.csv', 'emb_test')
->>>>>>> 007709138d8c23aac23bc2af32000b59e982b983
 
     print('creating graph=======================\n')
     if save:
@@ -125,11 +119,7 @@ def create_graphs(save=True, data_dir='gat/data/emb'):
 
     return graph_train, graph_test
 
-<<<<<<< HEAD
-def create_embeddings_gat(load_model=True, save=True, data_dir='data/emb', hyperparams=None, plot=True):
-=======
-def create_embeddings_gat(load_model=True, save=True, data_dir='gat/data/emb', hyperparams=None, plot=True):
->>>>>>> 007709138d8c23aac23bc2af32000b59e982b983
+def create_embeddings(load_model=True, save=True, data_dir='data/emb', hyperparams=None, plot=True):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     data = Dataset(data_dir)
     emb_dir = os.path.abspath(os.path.join(data_dir, 'embeddings'))
@@ -175,11 +165,7 @@ def create_embeddings_gat(load_model=True, save=True, data_dir='gat/data/emb', h
 
     return embedding_dict
 
-<<<<<<< HEAD
-def create_embeddings(load_model=True, save=True, data_dir='data/emb', hyperparams=None, plot=True):
-=======
-def create_embeddings(load_model=True, save=True, data_dir='gat/data/emb', hyperparams=None, plot=True):
->>>>>>> 007709138d8c23aac23bc2af32000b59e982b983
+def create_embeddings_gcn(load_model=True, save=True, data_dir='data/emb', hyperparams=None, plot=True):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     data = Dataset(data_dir)
     emb_dir = os.path.abspath(os.path.join(data_dir, 'embeddings'))
