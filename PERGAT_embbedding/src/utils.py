@@ -1,12 +1,6 @@
 import os
 import pickle
-import urllib.request
-import json
-from collections import defaultdict, namedtuple
-from datetime import datetime
-import networkx as nx
 import pandas as pd
-from py2neo import Graph, Node, Relationship
 import torch
 from torch import nn
 from tqdm import tqdm
@@ -59,38 +53,6 @@ class GCNModel(nn.Module):
 
         return embedding
 
-def get_miRNA_mapping(graph):
-    miRNA_mapping = {}  # Mapping of node_id to miRNA
-    for node_id, data in graph.graph_nx.nodes(data=True):
-        miRNA = data['miRNA']
-        miRNA_mapping[node_id] = miRNA  # Store the mapping
-    return miRNA_mapping  # Return the miRNA mapping
-
-def save_graph_to_neo4j(graph):
-    from py2neo import Graph, Node, Relationship
-
-    neo4j_url = "neo4j+s://7ffb183d.databases.neo4j.io"
-    user = "neo4j"
-    password = "BGc2jKUI44h_awhU5gEp8NScyuyx-iSSkTbFHEHJRpY"
-    
-    neo4j_graph = Graph(neo4j_url, auth=(user, password))
-
-    # Clear the existing graph
-    neo4j_graph.delete_all()
-
-    # Create nodes
-    nodes = {}
-    for node_id, data in graph.graph_nx.nodes(data=True):
-        miRNA = data['miRNA']
-        node = Node("Pathway", miRNA=miRNA, name=data['name'], weight=data['weight'], significance=data['significance'])
-        nodes[node_id] = node
-        neo4j_graph.create(node)
-
-    # Create relationships
-    for source, target in graph.graph_nx.edges():
-        relationship = Relationship(nodes[source], "parent-child", nodes[target])
-        neo4j_graph.create(relationship)
-
 def create_network(path_miRNA_csv, kge):
     graph = Network(path_miRNA_csv, kge)
     return graph
@@ -100,7 +62,7 @@ def save_to_disk(graph, save_dir):
     save_path = os.path.join(save_dir, graph.kge + '.pkl')
     pickle.dump(graph.graph_nx, open(save_path, 'wb'))
 
-def save_miRNA_to_csv(graph, save_dir):
+def _save_miRNA_to_csv(graph, save_dir):
     assert os.path.isdir(save_dir), 'Directory does not exist!'
     miRNA_data = {'miRNA': [node['miRNA'] for node in graph.graph_nx.nodes.values()]}
     df = pd.DataFrame(miRNA_data)
@@ -165,7 +127,7 @@ def create_embeddings(load_model=True, save=True, data_dir='data/emb', hyperpara
 
     return embedding_dict
 
-def create_embeddings_gcn(load_model=True, save=True, data_dir='data/emb', hyperparams=None, plot=True):
+def _create_embeddings_gcn(load_model=True, save=True, data_dir='data/emb', hyperparams=None, plot=True):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     data = Dataset(data_dir)
     emb_dir = os.path.abspath(os.path.join(data_dir, 'embeddings'))
