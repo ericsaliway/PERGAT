@@ -1,0 +1,82 @@
+source,destination,score,evidence
+hsa-miR-623,triple negative cancer,0.9993853569030762,Unconfirmed
+hsa-miR-6749-5p,testicular germ cell tumor cancer,0.9970314502716064,Unconfirmed
+hsa-miR-125b-2-3p,colorectal adenocarcinoma cancer,0.9969730377197266,Unconfirmed
+hsa-miR-183,rhabdomyosarcomas cancer,0.9969593286514282,miR2Disease
+hsa-miR-6846-5p,B cell lymphoma of MALT type cancer,0.99681156873703,Unconfirmed
+hsa-miR-6785-3p,hepatocellular carcinoma,0.9965400695800781,Unconfirmed
+hsa-miR-183*,esophageal cancer,0.9962855577468872,Unconfirmed
+hsa-miR-3156-5p,primary papillary thyroid carcinomas cancer,0.9961382746696472,Unconfirmed
+hsa-miR-5002-3p,colorectal adenoma cancer,0.9961134195327759,Unconfirmed
+hsa-miR-6073,kidney renal papillary cell carcinoma cancer,0.995789110660553,Unconfirmed
+hsa-miR-92a-1-5p,serous ovarian cancers cancer,0.9954667091369629,Unconfirmed
+hsa-miR-4419a,breast invasive carcinoma cancer,0.9923573732376099,Unconfirmed
+hsa-miR-4279,"Luminal A,triple negative cancer",0.9865842461585999,Unconfirmed
+hsa-miR-18b,larynx cancer,0.9836223721504211,miR2Disease
+hsa-miR-144*,adrenocortical carcinoma cancer,0.9807468056678772,miR2Disease
+hsa-miR-6828-3p,chromophobe renal cell carcinoma cancer,0.9774596095085144,Unconfirmed
+hsa-miR-2355-5p,gastrointestinal stromal tumor,0.9769953489303589,Unconfirmed
+hsa-miR-4679,adenocarcinoma cancer,0.9758375287055969,Unconfirmed
+hsa-miR-7-5p,melanoma brain metastasis cancer,0.9735010862350464,Unconfirmed
+hsa-miR-22,bladder cancer,0.9714401364326477,miR2Disease
+hsa-miR-585-3p,Kaposi's sarcoma cancer,0.9702670574188232,Unconfirmed
+hsa-miR-93,chordoma,0.969518780708313,miR2Disease
+hsa-miR-3189-5p,non-small cell lung cancer,0.9685249924659729,Unconfirmed
+hsa-miR-4476,myeloma cancer,0.9676936268806458,Unconfirmed
+hsa-miR-548e-3p,astrocytoma cancer,0.9592711925506592,Unconfirmed
+hsa-miR-26b-3p,H. Pylori negative gastric cancer,0.9505199193954468,Unconfirmed
+hsa-miR-145-5p,small intestinal neuroendocrine tumor,0.9046370387077332,Unconfirmed
+hsa-miR-3193,invasive lobular carcinoma cancer,0.8390361666679382,Unconfirmed
+hsa-miR-381,retinoblastoma,0.7902103066444397,miR2Disease
+hsa-miR-374a,medullary thyroid cancer,0.781813383102417,Unconfirmed
+hsa-miR-517c-3p,HER2+ positive cancer,0.7781676054000854,Unconfirmed
+hsa-miR-187-3p,cholangiocellular carcinoma cancer,0.7661493420600891,Unconfirmed
+hsa-miR-497-3p,esophageal squamous cell carcinomas cancer,0.7630194425582886,Unconfirmed
+hsa-miR-455-5p,uterus cancer,0.7598117589950562,Unconfirmed
+hsa-miR-18a,uterine corpus endometrial carcinoma cancer,0.7517345547676086,miR2Disease
+hsa-miR-6813-5p,tubulovillous adenoma cancer,0.7491482496261597,Unconfirmed
+hsa-miR-138-5p,combined hepatocellular cholangiocarcinoma cancer,0.7455558776855469,Unconfirmed
+hsa-miR-4723-5p,pilocytic astrocytoma cancer,0.7384677529335022,Unconfirmed
+hsa-miR-363,glioblastoma cancer,0.7372214794158936,miR2Disease
+hsa-miR-627-3p,oral squamous cell carcinoma,0.7357155680656433,Unconfirmed
+hsa-miR-518f-3p,cutaneous T-cell lymphoma cancer,0.7336172461509705,Unconfirmed
+hsa-miR-26b*,anaplastic astrocytoma cancer,0.7271103858947754,Unconfirmed
+hsa-miR-552-3p,Duke C cancer,0.7266714572906494,Unconfirmed
+hsa-miR-4417,HPV positive cancer,0.7255011796951294,Unconfirmed
+hsa-miR-520a-5p,HPV negative cancer,0.7237712144851685,Unconfirmed
+hsa-miR-548d-3p,nasopharyngeal cancer,0.7232418656349182,Unconfirmed
+hsa-miR-6124,ovarian carcinoma cancer,0.722564160823822,Unconfirmed
+hsa-miR-6815-3p,chronic lymphocytic leukemia cancer,0.6933071613311768,Unconfirmed
+hsa-miR-3182,PR positive cancer,0.6894825100898743,Unconfirmed
+hsa-miR-6778-5p,cervical squamous cell carcinoma cancer,0.6880662441253662,Unconfirmed
+hsa-miR-488-5p,skin cutaneous melanoma cancer,0.6828629374504089,Unconfirmed
+hsa-miR-4771,large cell carcinoma cancer,0.6559311747550964,Unconfirmed
+hsa-miR-4785,sarcoma,0.6428205370903015,Unconfirmed
+hsa-miR-148b,colon adenocarcinoma cancer,0.6372584104537964,miR2Disease
+hsa-miR-370,infantile hemangioma cancer,0.6351032853126526,miR2Disease
+hsa-miR-139-5p,B acute lymphoblastic leukemia cancer,0.6291038393974304,miR2Disease
+hsa-miR-27a-5p,papillary thyroid carcinoma cancer,0.6266542673110962,Unconfirmed
+hsa-miR-659-5p,Gastric lymphoma cancer,0.6121857166290283,Unconfirmed
+hsa-miR-6815-5p,hepatoblastoma cancer,0.6118935942649841,Unconfirmed
+hsa-miR-23a-3p,cholangiocarcinoma cancer,0.5959566831588745,Unconfirmed
+hsa-miR-6851-3p,Leptomeningeal metastasis cancer,0.5774676203727722,Unconfirmed
+hsa-miR-3155a,Barrett's carcinogenesis cancer,0.5747988224029541,Unconfirmed
+hsa-miR-589-5p,colonic adenomas cancer,0.57476407289505,Unconfirmed
+hsa-miR-3912-5p,colon cancer,0.5741659998893738,Unconfirmed
+hsa-miR-7975,oropharyngeal squamous cell carcinoma,0.5732293725013733,Unconfirmed
+hsa-miR-769-3p,acute myelogenous leukemia cancer,0.5732039213180542,miR2Disease
+hsa-miR-362-3p,follicular thyroid carcinoma cancer,0.5729295611381531,Unconfirmed
+hsa-miR-6869-5p,prostate adenocarcinoma cancer,0.5698248147964478,Unconfirmed
+hsa-miR-6810-5p,B-cell non-Hodgkin lymphoma cancer,0.564771294593811,Unconfirmed
+hsa-miR-4732-3p,B cell lymphoma cancer,0.5614147186279297,Unconfirmed
+hsa-miR-4687-5p,squamous cell carcinoma cancer,0.5586668848991394,Unconfirmed
+hsa-miR-3152-5p,osteosarcoma cancer,0.5562306046485901,Unconfirmed
+hsa-miR-33b-3p,aryngeal squamous cell carcinoma cancer,0.5536209344863892,Unconfirmed
+hsa-miR-652,clear cell ovarian carcinoma cancer,0.5530561208724976,miR2Disease
+hsa-miR-1276,malignant pleural mesothelioma cancer,0.5524550676345825,Unconfirmed
+hsa-miR-423-5p,diffuse large B cell lymphoma cancer,0.5522810816764832,Unconfirmed
+hsa-miR-1281,esophageal carcinoma cancer,0.5491071343421936,Unconfirmed
+hsa-miR-6805-5p,Luminal cancer,0.5463367700576782,Unconfirmed
+hsa-miR-301a-5p,meningioma cancer,0.5458151698112488,Unconfirmed
+hsa-miR-370-3p,glioblastoma  cancer,0.5332139134407043,Unconfirmed
+hsa-miR-191,Luminal A cancer,0.531991720199585,miR2Disease

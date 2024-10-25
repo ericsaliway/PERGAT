@@ -39,57 +39,35 @@ def train_and_evaluate(args, G_dgl, node_features, node_id_to_name):
     adj_neg = 1 - adj.todense() - np.eye(G_dgl.number_of_nodes())
     neg_u, neg_v = np.where(adj_neg != 0)
 
-    
     all_fold_results = pd.DataFrame()
     fold_results = []
     all_fold_results_breast_cancer = []
     all_fold_results_cancer = []
-   
 
     train_accuracies = []
     val_accuracies = []
     train_losses = []
     val_losses = []
-        
 
     # Process top predictions
     top_predictions_u = []
     top_predictions_v = []
-    
-    ##kf = KFold(n_splits=5, shuffle=True, random_state=66)
-    kf = KFold(n_splits=5, shuffle=True)
+
+    # Initialize KFold with consistent variable naming
+    kf = KFold(n_splits=5, shuffle=True, random_state=66)
     output_path = 'results/'
     os.makedirs(output_path, exist_ok=True)
 
+    # Store top attention scores
+    top_attention_scores = []
+    
     for fold, (train_idx, test_idx) in enumerate(kf.split(eids)):
         print(f'Fold {fold + 1}')
 
         val_size = int(len(train_idx) * 0.8)
         train_idx, val_idx = train_idx[val_size:], train_idx[:val_size]
 
-        '''np.random.shuffle(train_idx)
-        np.random.shuffle(test_idx)'''
-        
-        '''train_u_names = [u_names[i] for i in train_idx]
-        train_v_names = [v_names[i] for i in train_idx]
-
-        # Exclude "breast cancer" edges from the training set
-        # Combine conditions for both u_names and v_names
-
-        breast_cancer_mask = np.array([
-            "stomach neoplasms" in u_name.lower() or "stomach neoplasms" in v_name.lower()
-            for u_name, v_name in zip(train_u_names, train_v_names)
-        ])
-
-        # Count the number of filtered-out edges
-        num_filtered_edges = np.sum(breast_cancer_mask)
-        print(f'Total number of filtered-out edges related to "stomach neoplasms": {num_filtered_edges}')
-
-        # Apply the mask to filter out such edges from the training set
-        
-        train_idx = train_idx[~breast_cancer_mask]'''  # Invert the mask to exclude "breast cancer" nodes
-
-
+        # Train/test data processing remains unchanged
         train_pos_u, train_pos_v = u[train_idx], v[train_idx]
         val_pos_u, val_pos_v = u[val_idx], v[val_idx]
         test_pos_u, test_pos_v = u[test_idx], v[test_idx]
@@ -111,6 +89,7 @@ def train_and_evaluate(args, G_dgl, node_features, node_id_to_name):
         test_pos_g = create_graph(test_pos_u, test_pos_v, G_dgl.number_of_nodes())
         test_neg_g = create_graph(test_neg_u, test_neg_v, G_dgl.number_of_nodes())
 
+        # Model, optimizer, and criterion setup remains consistent
         model = GATModel(
             node_features.shape[1],
             out_feats=args.out_feats,
@@ -120,20 +99,6 @@ def train_and_evaluate(args, G_dgl, node_features, node_id_to_name):
             attn_drop=args.attn_drop,
             do_train=True
         )
-        
-        '''model = GraphSAGE(
-            in_feats=node_features.size(1), 
-            hidden_feats=args.hidden_feats, 
-            out_feats=args.out_feats, 
-            num_layers=args.num_layers
-        )'''
-
-        '''model = GCNModel(
-            node_features.shape[1], 
-            dim_latent=args.out_feats, 
-            num_layers=args.num_layers, 
-            do_train=True
-        )'''
 
         pred = MLPPredictor(args.input_size, args.hidden_size)
         criterion = FocalLoss(alpha=0.25, gamma=2.0, reduction='mean')
@@ -145,9 +110,8 @@ def train_and_evaluate(args, G_dgl, node_features, node_id_to_name):
         fold_train_losses = []
         fold_val_losses = []
 
-        # Using tqdm for progress bar
+        # Training loop with progress bar
         for e in tqdm(range(args.epochs), desc=f"Training Fold {fold + 1}"):
-        ##for e in range(args.epochs):
             model.train()
             h = model(train_g, train_g.ndata['feat'])
             pos_score = pred(train_pos_g, h)
@@ -187,20 +151,55 @@ def train_and_evaluate(args, G_dgl, node_features, node_id_to_name):
             
             if e % 5 == 0:
                 print(f'Fold {fold + 1} | Epoch {e} | Loss: {loss.item()} | Train Accuracy: {train_acc:.4f} | Val Accuracy: {val_acc:.4f}')
-        
+
+        # Append fold results
         train_accuracies.append(fold_train_accuracies)
         val_accuracies.append(fold_val_accuracies)
         train_losses.append(fold_train_losses)
         val_losses.append(fold_val_losses)
-        
-        ##print('val_losses================\n',val_losses)
 
+        # Testing and saving results (kept consistent)
         with torch.no_grad():
             model.eval()
             h_test = model(G_dgl, G_dgl.ndata['feat'])
             test_pos_score = pred(test_pos_g, h_test)
             test_neg_score = pred(test_neg_g, h_test)
-            
+
+
+            # Collect attention scores between nodes
+            attention_scores = test_pos_score.tolist() + test_neg_score.tolist()
+
+            # Ensure that attention_scores, test_pos_u, and test_pos_v are tensors or properly handle float types
+            top_attention_scores.extend([(torch.tensor(u).item(), torch.tensor(v).item(), torch.tensor(score).item())
+                                            for score, u, v in zip(attention_scores, test_pos_u, test_pos_v)])
+
+            # Sort top attention scores by their scalar value
+            top_attention_scores.sort(key=lambda x: x[2], reverse=True)
+
+            # Select the top 100 scores
+            top_100_scores = top_attention_scores[:100]
+
+            # Convert top_attention_scores to use node names instead of IDs
+            '''named_attention_scores = [
+                (node_id_to_name.get(source, str(source)), node_id_to_name.get(dest, str(dest)), score)
+                for source, dest, score in top_100_scores
+            ]'''
+            # Filter only source miRNA and destination cancer-related diseases
+            named_attention_scores = [
+                (node_id_to_name.get(source, str(source)), 
+                node_id_to_name.get(dest, str(dest)), 
+                score)
+                for source, dest, score in top_100_scores
+                if 'miR' in node_id_to_name.get(source, '')  # Check if source is an miRNA
+                and 'cancer' in node_id_to_name.get(dest, '')  # Check if destination is a cancer disease
+            ]
+            # Convert the top scores to a DataFrame and save to CSV
+            df_top_attention_scores = pd.DataFrame(named_attention_scores, columns=['Source Node', 'Destination Node', 'Attention Score'])
+            output_file = os.path.join(output_path, 'top_100_attention_scores.csv')
+            df_top_attention_scores.to_csv(output_file, index=False)
+
+            print(f"Top 100 attention scores saved to {output_file}")
+                        
             # Apply sigmoid to test scores
             test_pos_score = torch.sigmoid(test_pos_score)
             test_neg_score = torch.sigmoid(test_neg_score)

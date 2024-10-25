@@ -1,0 +1,41 @@
+source,destination,score
+hsa-miR-4417,HPV positive cancer,0.858076810836792
+hsa-miR-183*,esophageal cancer,0.8561713099479675
+hsa-miR-6828-3p,chromophobe renal cell carcinoma cancer,0.8542928099632263
+hsa-miR-26b-3p,H. Pylori negative gastric cancer,0.8537758588790894
+hsa-miR-92a-1-5p,serous ovarian cancers cancer,0.853394627571106
+hsa-miR-3156-5p,primary papillary thyroid carcinomas cancer,0.8505430221557617
+hsa-miR-138-5p,combined hepatocellular cholangiocarcinoma cancer,0.8251791596412659
+hsa-miR-3182,PR positive cancer,0.8176391124725342
+hsa-miR-652,clear cell ovarian carcinoma cancer,0.814549446105957
+hsa-miR-5002-3p,colorectal adenoma cancer,0.8092918395996094
+hsa-miR-26b*,anaplastic astrocytoma cancer,0.8064504265785217
+hsa-miR-548e-3p,astrocytoma cancer,0.7988290786743164
+hsa-miR-145-5p,small intestinal neuroendocrine tumor,0.7355245351791382
+hsa-miR-548d-3p,nasopharyngeal cancer,0.7256707549095154
+hsa-miR-6785-3p,hepatocellular carcinoma,0.7214130163192749
+hsa-miR-627-3p,oral squamous cell carcinoma,0.698102593421936
+hsa-miR-4476,myeloma cancer,0.6948476433753967
+hsa-miR-3912-5p,colon cancer,0.6930043697357178
+hsa-miR-4785,sarcoma,0.6822003722190857
+hsa-miR-6815-5p,hepatoblastoma cancer,0.6705887317657471
+hsa-miR-497-3p,esophageal squamous cell carcinomas cancer,0.6498921513557434
+hsa-miR-4679,adenocarcinoma cancer,0.6491811871528625
+hsa-miR-552-3p,Duke C cancer,0.6423569321632385
+hsa-miR-187-3p,cholangiocellular carcinoma cancer,0.6423054337501526
+hsa-miR-6749-5p,testicular germ cell tumor cancer,0.6415022611618042
+hsa-miR-183,rhabdomyosarcomas cancer,0.6412073373794556
+hsa-miR-125b-2-3p,colorectal adenocarcinoma cancer,0.6408822536468506
+hsa-miR-520a-5p,HPV negative cancer,0.6392518281936646
+hsa-miR-6073,kidney renal papillary cell carcinoma cancer,0.6380639672279358
+hsa-miR-7-5p,melanoma brain metastasis cancer,0.6372021436691284
+hsa-miR-22,bladder cancer,0.6359029412269592
+hsa-miR-455-5p,uterus cancer,0.6355161666870117
+hsa-miR-18a,uterine corpus endometrial carcinoma cancer,0.6353926062583923
+hsa-miR-517c-3p,HER2+ positive cancer,0.6325017809867859
+hsa-miR-585-3p,Kaposi's sarcoma cancer,0.6308584213256836
+hsa-miR-518f-3p,cutaneous T-cell lymphoma cancer,0.627499520778656
+hsa-miR-3189-5p,non-small cell lung cancer,0.6269773244857788
+hsa-miR-6846-5p,B cell lymphoma of MALT type cancer,0.6219487190246582
+hsa-miR-6813-5p,tubulovillous adenoma cancer,0.6216760277748108
+hsa-miR-589-5p,colonic adenomas cancer,0.5157074928283691

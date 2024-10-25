@@ -1,0 +1,42 @@
+source,destination,score
+hsa-miR-623,triple negative cancer,0.9941383600234985
+hsa-miR-4771,large cell carcinoma cancer,0.9896530508995056
+hsa-miR-659-5p,Gastric lymphoma cancer,0.9765550494194031
+hsa-miR-4723-5p,pilocytic astrocytoma cancer,0.9661375284194946
+hsa-miR-4419a,breast invasive carcinoma cancer,0.9560630321502686
+hsa-miR-6869-5p,prostate adenocarcinoma cancer,0.954805850982666
+hsa-miR-33b-3p,aryngeal squamous cell carcinoma cancer,0.9330470561981201
+hsa-miR-374a,medullary thyroid cancer,0.9287545084953308
+hsa-miR-139-5p,B acute lymphoblastic leukemia cancer,0.9230315685272217
+hsa-miR-27a-5p,papillary thyroid carcinoma cancer,0.9069809913635254
+hsa-miR-3193,invasive lobular carcinoma cancer,0.8847331404685974
+hsa-miR-4732-3p,B cell lymphoma cancer,0.8758569955825806
+hsa-miR-301a-5p,meningioma cancer,0.8656007051467896
+hsa-miR-6805-5p,Luminal cancer,0.8651480674743652
+hsa-miR-18b,larynx cancer,0.8543466925621033
+hsa-miR-423-5p,diffuse large B cell lymphoma cancer,0.8349659442901611
+hsa-miR-1281,esophageal carcinoma cancer,0.8263832330703735
+hsa-miR-6810-5p,B-cell non-Hodgkin lymphoma cancer,0.7633048295974731
+hsa-miR-3155a,Barrett's carcinogenesis cancer,0.7632964253425598
+hsa-miR-144*,adrenocortical carcinoma cancer,0.756598174571991
+hsa-miR-6815-3p,chronic lymphocytic leukemia cancer,0.756217896938324
+hsa-miR-7975,oropharyngeal squamous cell carcinoma,0.7551969289779663
+hsa-miR-769-3p,acute myelogenous leukemia cancer,0.7521639466285706
+hsa-miR-363,glioblastoma cancer,0.7496616840362549
+hsa-miR-381,retinoblastoma,0.7490389943122864
+hsa-miR-370-3p,glioblastoma  cancer,0.719577968120575
+hsa-miR-1276,malignant pleural mesothelioma cancer,0.6868610978126526
+hsa-miR-370,infantile hemangioma cancer,0.6727350354194641
+hsa-miR-23a-3p,cholangiocarcinoma cancer,0.6566756367683411
+hsa-miR-4279,"Luminal A,triple negative cancer",0.6556815505027771
+hsa-miR-3152-5p,osteosarcoma cancer,0.6179804801940918
+hsa-miR-2355-5p,gastrointestinal stromal tumor,0.5859255194664001
+hsa-miR-6851-3p,Leptomeningeal metastasis cancer,0.5850986838340759
+hsa-miR-148b,colon adenocarcinoma cancer,0.583389163017273
+hsa-miR-6124,ovarian carcinoma cancer,0.581937313079834
+hsa-miR-488-5p,skin cutaneous melanoma cancer,0.5778101086616516
+hsa-miR-6778-5p,cervical squamous cell carcinoma cancer,0.5554531812667847
+hsa-miR-4687-5p,squamous cell carcinoma cancer,0.5529206395149231
+hsa-miR-362-3p,follicular thyroid carcinoma cancer,0.5305742025375366
+hsa-miR-93,chordoma,0.5242139101028442
+hsa-miR-191,Luminal A cancer,0.5186306238174438

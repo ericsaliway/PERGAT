@@ -1,0 +1,41 @@
+source,destination,score
+hsa-miR-552-3p,Duke C cancer,0.9805506467819214
+hsa-miR-4417,HPV positive cancer,0.9803490042686462
+hsa-miR-520a-5p,HPV negative cancer,0.9790224432945251
+hsa-miR-548d-3p,nasopharyngeal cancer,0.9788666367530823
+hsa-miR-138-5p,combined hepatocellular cholangiocarcinoma cancer,0.9653323888778687
+hsa-miR-627-3p,oral squamous cell carcinoma,0.9591643810272217
+hsa-miR-26b*,anaplastic astrocytoma cancer,0.9536372423171997
+hsa-miR-3182,PR positive cancer,0.9524154663085938
+hsa-miR-183,rhabdomyosarcomas cancer,0.9476643204689026
+hsa-miR-6749-5p,testicular germ cell tumor cancer,0.9463692903518677
+hsa-miR-125b-2-3p,colorectal adenocarcinoma cancer,0.9463455080986023
+hsa-miR-6846-5p,B cell lymphoma of MALT type cancer,0.9456773400306702
+hsa-miR-6785-3p,hepatocellular carcinoma,0.9449623823165894
+hsa-miR-3156-5p,primary papillary thyroid carcinomas cancer,0.9425151348114014
+hsa-miR-183*,esophageal cancer,0.9420753121376038
+hsa-miR-6073,kidney renal papillary cell carcinoma cancer,0.9406068921089172
+hsa-miR-5002-3p,colorectal adenoma cancer,0.9395071864128113
+hsa-miR-92a-1-5p,serous ovarian cancers cancer,0.9313115477561951
+hsa-miR-187-3p,cholangiocellular carcinoma cancer,0.8954943418502808
+hsa-miR-517c-3p,HER2+ positive cancer,0.8876219391822815
+hsa-miR-497-3p,esophageal squamous cell carcinomas cancer,0.8873338103294373
+hsa-miR-18a,uterine corpus endometrial carcinoma cancer,0.8825170397758484
+hsa-miR-455-5p,uterus cancer,0.8809904456138611
+hsa-miR-518f-3p,cutaneous T-cell lymphoma cancer,0.8690286874771118
+hsa-miR-6813-5p,tubulovillous adenoma cancer,0.8669196963310242
+hsa-miR-652,clear cell ovarian carcinoma cancer,0.8461995720863342
+hsa-miR-6828-3p,chromophobe renal cell carcinoma cancer,0.7682774066925049
+hsa-miR-4679,adenocarcinoma cancer,0.7682464718818665
+hsa-miR-145-5p,small intestinal neuroendocrine tumor,0.7630785703659058
+hsa-miR-7-5p,melanoma brain metastasis cancer,0.7624555826187134
+hsa-miR-585-3p,Kaposi's sarcoma cancer,0.7592898607254028
+hsa-miR-4785,sarcoma,0.7589934468269348
+hsa-miR-22,bladder cancer,0.757436990737915
+hsa-miR-4476,myeloma cancer,0.7535301446914673
+hsa-miR-3189-5p,non-small cell lung cancer,0.7528936266899109
+hsa-miR-548e-3p,astrocytoma cancer,0.7456961870193481
+hsa-miR-26b-3p,H. Pylori negative gastric cancer,0.7428554892539978
+hsa-miR-6815-5p,hepatoblastoma cancer,0.6716554164886475
+hsa-miR-3912-5p,colon cancer,0.6533766984939575
+hsa-miR-589-5p,colonic adenomas cancer,0.6525779962539673
