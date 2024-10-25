@@ -195,7 +195,9 @@ def train_and_evaluate(args, G_dgl, node_features, node_id_to_name):
             ]
             # Convert the top scores to a DataFrame and save to CSV
             df_top_attention_scores = pd.DataFrame(named_attention_scores, columns=['Source Node', 'Destination Node', 'Attention Score'])
-            output_file = os.path.join(output_path, 'top_100_attention_scores.csv')
+            ## output_file = os.path.join(output_path, 'top_100_attention_scores.csv')
+            output_file = f'top_25_attention_scores_drop{args.attn_drop}_head{args.num_heads}_lr{args.lr}_lay{args.num_layers}_input{args.input_size}_dim{args.out_feats}_epoch{args.epochs}.csv'
+            output_file = os.path.join(output_path, output_file)
             df_top_attention_scores.to_csv(output_file, index=False)
 
             print(f"Top 100 attention scores saved to {output_file}")

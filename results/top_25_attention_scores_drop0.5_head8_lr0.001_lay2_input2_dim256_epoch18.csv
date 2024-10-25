@@ -1,0 +1,21 @@
+Source Node,Destination Node,Attention Score
+hsa-miR-520a-5p,HPV negative cancer,0.2867268919944763
+hsa-miR-552-3p,Duke C cancer,0.28390681743621826
+hsa-miR-548d-3p,nasopharyngeal cancer,0.28149503469467163
+hsa-miR-4417,HPV positive cancer,0.26750054955482483
+hsa-miR-6749-5p,testicular germ cell tumor cancer,0.2634998857975006
+hsa-miR-183,rhabdomyosarcomas cancer,0.2630419135093689
+hsa-miR-125b-2-3p,colorectal adenocarcinoma cancer,0.2608276903629303
+hsa-miR-187-3p,cholangiocellular carcinoma cancer,0.24023805558681488
+hsa-miR-3182,PR positive cancer,0.2393927276134491
+hsa-miR-6815-5p,hepatoblastoma cancer,0.2277049422264099
+hsa-miR-18a,uterine corpus endometrial carcinoma cancer,0.2228093147277832
+hsa-miR-518f-3p,cutaneous T-cell lymphoma cancer,0.22278228402137756
+hsa-miR-3912-5p,colon cancer,0.2179543673992157
+hsa-miR-3156-5p,primary papillary thyroid carcinomas cancer,0.21681733429431915
+hsa-miR-6073,kidney renal papillary cell carcinoma cancer,0.21525447070598602
+hsa-miR-589-5p,colonic adenomas cancer,0.21504399180412292
+hsa-miR-455-5p,uterus cancer,0.20409241318702698
+hsa-miR-517c-3p,HER2+ positive cancer,0.20343828201293945
+hsa-miR-6813-5p,tubulovillous adenoma cancer,0.18789471685886383
+hsa-miR-497-3p,esophageal squamous cell carcinomas cancer,0.17179356515407562
