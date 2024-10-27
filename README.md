@@ -6,13 +6,13 @@ This repository provides the code for our research project "PERGAT: Pretrained E
 ## Data resources
 The different dataset and KG used in this project are located in data directory. These files include:
 
--) https://www.biosino.org/dbDEMC/index
+-) dbDEMC: A Database of Differentially Expressed miRNAs in Human Cancers (https://www.biosino.org/dbDEMC/index)
 
--) conda create -n gnn python=3.11 -y
+-) HMDD(the Human microRNA Disease Database)(http://www.cuilab.cn/hmdd)
+
+-) miR2Disease (http://www.mir2disease.org/)
 
 ## Setup
-
--) conda create -n gnn python=3.11 -y
 
 -) conda create -n gnn python=3.11 -y
 
