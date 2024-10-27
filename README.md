@@ -8,7 +8,7 @@ The different dataset and KG used in this project are located in data directory.
 
 -) dbDEMC: A Database of Differentially Expressed miRNAs in Human Cancers (https://www.biosino.org/dbDEMC/index)
 
--) HMDD: the Human microRNA Disease Database(http://www.cuilab.cn/hmdd)
+-) HMDD: the Human microRNA Disease Database (http://www.cuilab.cn/hmdd)
 
 -) miR2Disease: (http://www.mir2disease.org/)
 
