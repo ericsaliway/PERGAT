@@ -1,212 +1,369 @@
-import json
-import networkx as nx
-import torch.nn.functional as F
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.metrics import roc_auc_score, f1_score, precision_score, recall_score
-import itertools
-import scipy.sparse as sp
-import os
-import argparse
-import pandas as pd
 import torch
 import torch.nn as nn
-from torch import Tensor
-import dgl
-from dgl import DGLGraph
-from dgl.nn.pytorch import edge_softmax
-import dgl.function as fn
-from dgl.base import DGLError
-from typing import Callable, Optional, Tuple, Union
-from dgl.nn import GraphConv
+import torch.nn.functional as F
 
-class GATConv(nn.Module):
-    def __init__(self,
-                 in_feats: Union[int, Tuple[int, int]],
-                 out_feats: int,
-                 num_heads: int,
-                 feat_drop: float = 0.,
-                 attn_drop: float = 0.,
-                 negative_slope: float = 0.2,
-                 residual: bool = False,
-                 activation: Optional[Callable] = None,
-                 allow_zero_in_degree: bool = False,
-                 bias: bool = True) -> None:
-        super(GATConv, self).__init__()
-        self._num_heads = num_heads
-        self._in_src_feats, self._in_dst_feats = dgl.utils.expand_as_pair(in_feats)
-        self._out_feats = out_feats
-        self._allow_zero_in_degree = allow_zero_in_degree
+from torch_geometric.nn import GCNConv
+from torch.nn import Linear
+from dgl.nn.pytorch import GINConv, ChebConv, GraphConv, SAGEConv, GATConv
+from torch_geometric.utils import dropout_edge, negative_sampling, remove_self_loops, add_self_loops
+## (kg39) ericsali@erics-MacBook-Pro-4 gnn_pathways % python gat/__pertag_driver_gene_prediction_chebnet_gpu_usage_pass_distr_2048.py --model_type ACGNN --net_type CPDB --score_threshold 0.99 --hidden_feats 1024 --learning_rate 0.001 --num_epochs 105
+## (kg39) ericsali@erics-MacBook-Pro-4 gnn_pathways % python gat/__pertag_driver_gene_prediction_chebnet_gpu_usage_pass_distr_2048.py --model_type ACGNN --net_type HIPPIE --score_threshold 0.99 --in_feats 2048 --hidden_feats 256 --learning_rate 0.001 --num_epochs 105
 
-        if isinstance(in_feats, tuple):
-            self.fc_src = nn.Linear(self._in_src_feats, out_feats * num_heads, bias=False)
-            self.fc_dst = nn.Linear(self._in_dst_feats, out_feats * num_heads, bias=False)
-        else:
-            self.fc = nn.Linear(self._in_src_feats, out_feats * num_heads, bias=False)
+## (kg39) ericsali@erics-MacBook-Pro-4 gnn_pathways % python gat/__pertag_driver_gene_prediction_chebnet_gpu_usage_pass_distr_2048.py --model_type ACGNN --score_threshold 0.99 --learning_rate 0.001 --num_epochs 204
+## p_value in average predicted score
+## (kg39) ericsali@erics-MacBook-Pro-4 gnn_pathways % python gat/__pertag_driver_gene_prediction_chebnet_gpu_usage_pass_distr_2048.py --model_type ACGNN --net_type STRING --score_threshold 0.99 --learning_rate 0.001 --num_epochs 505
+## python gat/_gene_label_prediction_tsne_pertag.py --model_type Chebnet --net_type pathnet --score_threshold 0.4 --learning_rate 0.001 --num_epochs 65 
+## (kg39) ericsali@erics-MBP-4 gnn_pathways % python gat/_gene_label_prediction_tsne_sage.py --model_type EMOGI --net_type ppnet --score_threshold 0.5 --learning_rate 0.001 --num_epochs 100 
+## (kg39) ericsali@erics-MBP-4 gnn_pathways % python gat/_gene_label_prediction_tsne_pertag.py --model_type ATTAG --net_type ppnet --score_threshold 0.9 --learning_rate 0.001 --num_epochs 201
 
-        self.attn_l = nn.Parameter(torch.FloatTensor(size=(1, num_heads, out_feats)))
-        self.attn_r = nn.Parameter(torch.FloatTensor(size=(1, num_heads, out_feats)))
-        self.feat_drop = nn.Dropout(feat_drop)
-        self.attn_drop = nn.Dropout(attn_drop)
-        self.leaky_relu = nn.LeakyReLU(negative_slope)
-        self.residual = residual
-        if residual:
-            if self._in_dst_feats != out_feats:
-                self.res_fc = nn.Linear(self._in_dst_feats, num_heads * out_feats, bias=False)
-            else:
-                self.res_fc = nn.Identity()
-        else:
-            self.register_buffer("res_fc", None)
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from dgl.nn import SAGEConv, GATConv, GraphConv, GINConv, ChebConv
+from torch_geometric.utils import dropout_edge, negative_sampling, remove_self_loops, add_self_loops
 
-        if bias:
-            self.bias = nn.Parameter(torch.FloatTensor(size=(num_heads * out_feats,)))
-        else:
-            self.register_buffer("bias", None)
-
-        self.reset_parameters()
-        self.activation = activation
+class ACGNN(nn.Module):
+    def __init__(self, in_feats, hidden_feats, out_feats, k=2, dropout=0.3):
+        """
+        Speed-optimized Adaptive Chebyshev Graph Neural Network.
         
-        # Add normalization layer
-        self.norm = nn.BatchNorm1d(num_heads * out_feats)
-
-    def reset_parameters(self) -> None:
-        """Reinitialize learnable parameters."""
-        gain = nn.init.calculate_gain('relu')
-        if hasattr(self, 'fc'):
-            nn.init.xavier_normal_(self.fc.weight, gain=gain)
-        else:
-            nn.init.xavier_normal_(self.fc_src.weight, gain=gain)
-            nn.init.xavier_normal_(self.fc_dst.weight, gain=gain)
-        nn.init.xavier_normal_(self.attn_l, gain=gain)
-        nn.init.xavier_normal_(self.attn_r, gain=gain)
-        if self.res_fc is not None and not isinstance(self.res_fc, nn.Identity):
-            nn.init.xavier_normal_(self.res_fc.weight, gain=gain)
-        if self.bias is not None:
-            nn.init.zeros_(self.bias)
-
-    def set_allow_zero_in_degree(self, set_value: bool) -> None:
-        """Set the flag to allow zero in-degree for the graph."""
-        self._allow_zero_in_degree = set_value
-
-    def forward(self, graph: DGLGraph, feat: Union[Tensor, Tuple[Tensor, Tensor]]) -> Tensor:
-        """Forward computation."""
-        with graph.local_scope():
-            if not self._allow_zero_in_degree and (graph.in_degrees() == 0).any():
-                raise DGLError('There are 0-in-degree nodes in the graph, '
-                               'output for those nodes will be invalid. '
-                               'Adding self-loop on the input graph by '
-                               'calling `g = dgl.add_self_loop(g)` will resolve '
-                               'the issue. Setting `allow_zero_in_degree` '
-                               'to `True` when constructing this module will '
-                               'suppress this check and let the users handle '
-                               'it by themselves.')
-
-            if isinstance(feat, tuple):
-                h_src = self.feat_drop(feat[0])
-                h_dst = self.feat_drop(feat[1])
-                if hasattr(self, 'fc_src'):
-                    feat_src = self.fc_src(h_src).view(-1, self._num_heads, self._out_feats)
-                    feat_dst = self.fc_dst(h_dst).view(-1, self._num_heads, self._out_feats)
-                else:
-                    feat_src = self.fc(h_src).view(-1, self._num_heads, self._out_feats)
-                    feat_dst = self.fc(h_dst).view(-1, self._num_heads, self._out_feats)
-            else:
-                h_src = h_dst = self.feat_drop(feat)
-                feat_src = feat_dst = self.fc(h_src).view(-1, self._num_heads, self._out_feats)
-
-            graph.srcdata.update({'ft': feat_src, 'el': (feat_src * self.attn_l).sum(dim=-1).unsqueeze(-1)})
-            graph.dstdata.update({'er': (feat_dst * self.attn_r).sum(dim=-1).unsqueeze(-1)})
-            graph.apply_edges(fn.u_add_v('el', 'er', 'e'))
-            e = self.leaky_relu(graph.edata.pop('e'))
-            graph.edata['a'] = self.attn_drop(edge_softmax(graph, e))
-
-            graph.update_all(fn.u_mul_e('ft', 'a', 'm'), fn.sum('m', 'ft'))
-            rst = graph.dstdata['ft']
-
-            if self.res_fc is not None:
-                resval = self.res_fc(h_dst).view(h_dst.shape[0], self._num_heads, self._out_feats)
-                rst = rst + resval
-
-            if self.bias is not None:
-                rst = rst + self.bias.view(1, -1, self._out_feats)
-
-            # Apply normalization
-            rst = rst.view(rst.shape[0], -1)
-            rst = self.norm(rst)
-            rst = rst.view(rst.shape[0], self._num_heads, self._out_feats)
-
-            if self.activation:
-                rst = self.activation(rst)
-
-            return rst
-
-class GATModel(nn.Module):
-    def __init__(self, in_feats, out_feats, num_layers=1, num_heads=4, feat_drop=0.0, attn_drop=0.0, do_train=False):
-        super(GATModel, self).__init__()
-        self.do_train = do_train
+        Parameters:
+        - in_feats: Input feature size
+        - hidden_feats: Hidden layer feature size
+        - out_feats: Output feature size
+        - k: Chebyshev polynomial order (lower for speed)
+        - dropout: Dropout rate
+        """
+        super(ACGNN, self).__init__()
+        self.k = k  # Adaptive Chebyshev order
+        self.dropout = dropout
         
-        assert out_feats % num_heads == 0, "out_feats must be divisible by num_heads"
+        # Reduced ChebConv layers (only 2 instead of 3)
+        self.cheb1 = ChebConv(in_feats, hidden_feats, k)
+        self.cheb2 = ChebConv(hidden_feats, hidden_feats, k)
         
-        self.layers = nn.ModuleList()
+        # Fully Connected Layers
+        self.mlp = nn.Sequential(
+            nn.Linear(hidden_feats, hidden_feats),
+            nn.ReLU(),
+            nn.Linear(hidden_feats, out_feats)
+        )
         
-        # First layer
-        self.layers.append(GATConv(in_feats, out_feats // num_heads, num_heads, feat_drop=feat_drop, attn_drop=attn_drop, residual=True, activation=F.leaky_relu, allow_zero_in_degree=True))
+        # Faster Normalization
+        self.norm = nn.BatchNorm1d(hidden_feats)  # BatchNorm is faster than LayerNorm
         
-        # Hidden layers
-        for _ in range(num_layers - 1):
-            self.layers.append(GATConv(out_feats, out_feats // num_heads, num_heads, feat_drop=feat_drop, attn_drop=attn_drop, residual=True, activation=F.leaky_relu, allow_zero_in_degree=True))
-        
-        self.predict = nn.Linear(out_feats, 1)
-        self.leaky_relu = nn.LeakyReLU(negative_slope=0.2)
-        self.dropout = nn.Dropout(p=0.0)
-        ##self.sigmoid = nn.Sigmoid()
+        # Regularization
+        self.dropout_layer = nn.Dropout(dropout)
 
     def forward(self, g, features):
-        h = features
-        for layer in self.layers:
-            h = self.dropout(h)
-            h = layer(g, h).flatten(1)
-            h = self.leaky_relu(h)  # Apply LeakyReLU activation
+        """
+        Forward pass for Fast Adaptive ACGNN.
         
-        if not self.do_train:
-            return h.detach()
+        Parameters:
+        - g: DGL graph
+        - features: Input node features
         
-        logits = self.predict(h)
-        ##logits = self.sigmoid(logits)
-        return logits
+        Returns:
+        - Output tensor after passing through Fast ACGNN layers
+        """
+        x = F.relu(self.cheb1(g, features))
+        x = self.norm(x)  # BatchNorm improves stability
+        
+        x_res = x  # Residual Connection
+        x = F.relu(self.cheb2(g, x))
+        x = self.dropout_layer(x) + x_res  # Efficient Residual
+        
+        return self.mlp(x)
+
+class HGDC(torch.nn.Module):
+    def __init__(self, args, weights=[0.95, 0.90, 0.15, 0.10]):
+        super().__init__()
+        self.args = args
+        in_channels = self.args.in_channels
+        hidden_channels = self.args.hidden_channels
+        self.linear1 = Linear(in_channels, hidden_channels)
+
+        # 3 convolutional layers for the original network
+        self.conv_k1_1 = GCNConv(hidden_channels, hidden_channels, add_self_loops=False)
+        self.conv_k2_1 = GCNConv(2 * hidden_channels, hidden_channels, add_self_loops=False)
+        self.conv_k3_1 = GCNConv(2 * hidden_channels, hidden_channels, add_self_loops=False)
+        
+        # 3 convolutional layers for the auxiliary network
+        self.conv_k1_2 = GCNConv(hidden_channels, hidden_channels, add_self_loops=False)
+        self.conv_k2_2 = GCNConv(2 * hidden_channels, hidden_channels, add_self_loops=False)
+        self.conv_k3_2 = GCNConv(2 * hidden_channels, hidden_channels, add_self_loops=False)
+
+        self.linear_r0 = Linear(hidden_channels, 1)
+        self.linear_r1 = Linear(2 * hidden_channels, 1)
+        self.linear_r2 = Linear(2 * hidden_channels, 1)
+        self.linear_r3 = Linear(2 * hidden_channels, 1)
+
+        # Attention weights on outputs of different convolutional layers
+        self.weight_r0 = torch.nn.Parameter(torch.Tensor([weights[0]]), requires_grad=True)
+        self.weight_r1 = torch.nn.Parameter(torch.Tensor([weights[1]]), requires_grad=True)
+        self.weight_r2 = torch.nn.Parameter(torch.Tensor([weights[2]]), requires_grad=True)
+        self.weight_r3 = torch.nn.Parameter(torch.Tensor([weights[3]]), requires_grad=True)
+
+    def forward(self, data):
+        x_input = data.x
+        edge_index_1 = data.edge_index
+        edge_index_2 = data.edge_index_aux
+
+        edge_index_1, _ = dropout_edge(edge_index_1, p=0.5, 
+                                       force_undirected=True, 
+                                       training=self.training)
+        edge_index_2, _ = dropout_edge(edge_index_2, p=0.5, 
+                                       force_undirected=True, 
+                                       training=self.training)
+
+        x_input = F.dropout(x_input, p=0.5, training=self.training)
+
+        R0 = torch.relu(self.linear1(x_input))
+
+        R_k1_1 = self.conv_k1_1(R0, edge_index_1)
+        R_k1_2 = self.conv_k1_2(R0, edge_index_2)
+        R1 = torch.cat((R_k1_1, R_k1_2), 1)
+
+        R_k2_1 = self.conv_k2_1(R1, edge_index_1)
+        R_k2_2 = self.conv_k2_2(R1, edge_index_2)
+        R2 = torch.cat((R_k2_1, R_k2_2), 1)
+
+        R_k3_1 = self.conv_k3_1(R2, edge_index_1)
+        R_k3_2 = self.conv_k3_2(R2, edge_index_2)
+        R3 = torch.cat((R_k3_1, R_k3_2), 1)
+
+        R0 = F.dropout(R0, p=0.5, training=self.training)
+        res0 = self.linear_r0(R0)
+        R1 = F.dropout(R1, p=0.5, training=self.training)
+        res1 = self.linear_r1(R1)
+        R2 = F.dropout(R2, p=0.5, training=self.training)
+        res2 = self.linear_r2(R2)
+        R3 = F.dropout(R3, p=0.5, training=self.training)
+        res3 = self.linear_r3(R3)
+
+        out = res0 * self.weight_r0 + res1 * self.weight_r1 + res2 * self.weight_r2 + res3 * self.weight_r3
+        return out
+
+class MTGCN(torch.nn.Module):
+    def __init__(self, args):
+        super(MTGCN, self).__init__()
+        self.args = args
+        self.conv1 = ChebConv(58, 300, K=2, normalization="sym")
+        self.conv2 = ChebConv(300, 100, K=2, normalization="sym")
+        self.conv3 = ChebConv(100, 1, K=2, normalization="sym")
+
+        self.lin1 = Linear(58, 100)
+        self.lin2 = Linear(58, 100)
+
+        self.c1 = torch.nn.Parameter(torch.Tensor([0.5]))
+        self.c2 = torch.nn.Parameter(torch.Tensor([0.5]))
+
+    def forward(self, data):
+        edge_index, _ = dropout_edge(data.edge_index, p=0.5,
+                                     force_undirected=True,
+                                     num_nodes=data.x.size()[0],
+                                     training=self.training)
+        E = data.edge_index
+        pb, _ = remove_self_loops(data.edge_index)
+        pb, _ = add_self_loops(pb)
+
+        x0 = F.dropout(data.x, training=self.training)
+        x = torch.relu(self.conv1(x0, edge_index))
+        x = F.dropout(x, training=self.training)
+        x1 = torch.relu(self.conv2(x, edge_index))
+
+        x = x1 + torch.relu(self.lin1(x0))
+        z = x1 + torch.relu(self.lin2(x0))
+
+        pos_loss = -torch.log(torch.sigmoid((z[E[0]] * z[E[1]]).sum(dim=1)) + 1e-15).mean()
+
+        neg_edge_index = negative_sampling(pb, data.num_nodes, data.num_edges)
+
+        neg_loss = -torch.log(
+            1 - torch.sigmoid((z[neg_edge_index[0]] * z[neg_edge_index[1]]).sum(dim=1)) + 1e-15).mean()
+
+        r_loss = pos_loss + neg_loss
+
+        x = F.dropout(x, training=self.training)
+        x = self.conv3(x, edge_index)
+
+        return x, r_loss, self.c1, self.c2
+
+class EMOGI(torch.nn.Module):
+    def __init__(self,args):
+        super(EMOGI, self).__init__()
+        self.args = args
+        self.conv1 = ChebConv(58, 300, K=2)
+        self.conv2 = ChebConv(300, 100, K=2)
+        self.conv3 = ChebConv(100, 1, K=2)
+
+    def forward(self, data):
+        edge_index = data.edge_index
+        x = F.dropout(data.x, training=self.training)
+        x = torch.relu(self.conv1(x, edge_index))
+        x = F.dropout(x, training=self.training)
+        x = torch.relu(self.conv2(x, edge_index))
+        x = F.dropout(x, training=self.training)
+        x = self.conv3(x, edge_index)
+
+        return x
+
+class Chebnet(nn.Module):
+    def __init__(self, in_feats, hidden_feats, out_feats, k=3):
+        """
+        Chebnet implementation using DGL's ChebConv.
+        
+        Parameters:
+        - in_feats: Number of input features.
+        - hidden_feats: Number of hidden layer features.
+        - out_feats: Number of output features.
+        - k: Chebyshev polynomial order.
+        """
+        super(Chebnet, self).__init__()
+        self.cheb1 = ChebConv(in_feats, hidden_feats, k)
+        self.cheb2 = ChebConv(hidden_feats, hidden_feats, k)
+        self.mlp = nn.Sequential(
+            nn.Linear(hidden_feats, hidden_feats),
+            nn.ReLU(),
+            nn.Linear(hidden_feats, out_feats)
+        )
+
+    def forward(self, g, features):
+        """
+        Forward pass for Chebnet.
+        
+        Parameters:
+        - g: DGL graph.
+        - features: Input features tensor.
+        
+        Returns:
+        - Output tensor after passing through Chebnet layers.
+        """
+        x = F.relu(self.cheb1(g, features))
+        x = F.relu(self.cheb2(g, x))
+        return self.mlp(x)
+
+class GIN(nn.Module):
+    def __init__(self, in_feats, hidden_feats, out_feats):
+        super(GIN, self).__init__()
+        # Define the first GIN layer
+        self.gin1 = GINConv(
+            nn.Sequential(
+                nn.Linear(in_feats, hidden_feats),
+                nn.ReLU(),
+                nn.Linear(hidden_feats, hidden_feats)
+            ),
+            'mean'  # Aggregation method: 'mean', 'max', or 'sum'
+        )
+        # Define the second GIN layer
+        self.gin2 = GINConv(
+            nn.Sequential(
+                nn.Linear(hidden_feats, hidden_feats),
+                nn.ReLU(),
+                nn.Linear(hidden_feats, hidden_feats)
+            ),
+            'mean'
+        )
+        # MLP for final predictions
+        self.mlp = nn.Sequential(
+            nn.Linear(hidden_feats, hidden_feats),
+            nn.ReLU(),
+            nn.Linear(hidden_feats, out_feats)
+        )
+
+    def forward(self, g, features):
+        # Apply the first GIN layer
+        x = F.relu(self.gin1(g, features))
+        # Apply the second GIN layer
+        x = F.relu(self.gin2(g, x))
+        # Apply the MLP
+        return self.mlp(x)
+
+class GraphSAGE(nn.Module):
+    def __init__(self, in_feats, hidden_feats, out_feats):
+        super(GraphSAGE, self).__init__()
+        self.sage1 = SAGEConv(in_feats, hidden_feats, aggregator_type='mean')
+        self.sage2 = SAGEConv(hidden_feats, hidden_feats, aggregator_type='mean')
+        self.mlp = nn.Sequential(
+            nn.Linear(hidden_feats, hidden_feats),
+            nn.ReLU(),
+            nn.Linear(hidden_feats, out_feats)
+        )
+
+    def forward(self, g, features):
+        x = F.relu(self.sage1(g, features))
+        x = F.relu(self.sage2(g, x))
+        return self.mlp(x)
+
+class GAT(nn.Module):
+    def __init__(self, in_feats, hidden_feats, out_feats, num_heads=3):
+        """
+        Graph Attention Network (GAT).
+        
+        Parameters:
+        - in_feats: Number of input features.
+        - hidden_feats: Number of hidden layer features.
+        - out_feats: Number of output features.
+        - num_heads: Number of attention heads.
+        """
+        super(GAT, self).__init__()
+        self.gat1 = GATConv(in_feats, hidden_feats, num_heads, activation=F.relu)
+        self.gat2 = GATConv(hidden_feats * num_heads, hidden_feats, num_heads, activation=F.relu)
+        self.mlp = nn.Sequential(
+            nn.Linear(hidden_feats * num_heads, hidden_feats),
+            nn.ReLU(),
+            nn.Linear(hidden_feats, out_feats)
+        )
+
+    def forward(self, g, features):
+        """
+        Forward pass for GAT.
+        
+        Parameters:
+        - g: DGL graph.
+        - features: Input features tensor.
+        
+        Returns:
+        - Output tensor after passing through GAT layers.
+        """
+        x = self.gat1(g, features)
+        x = x.flatten(1)  # Flatten the output of multi-head attention
+        x = self.gat2(g, x)
+        x = x.flatten(1)  # Flatten the output again
+        return self.mlp(x)
+
+class GCN(nn.Module):
+    def __init__(self, in_feats, hidden_feats, out_feats):
+        super(GCN, self).__init__()
+        self.gcn1 = GraphConv(in_feats, hidden_feats)
+        self.gcn2 = GraphConv(hidden_feats, hidden_feats)
+        self.mlp = nn.Sequential(
+            nn.Linear(hidden_feats, hidden_feats),
+            nn.ReLU(),
+            nn.Linear(hidden_feats, out_feats)
+        )
+
+    def forward(self, g, features):
+        x = F.relu(self.gcn1(g, features))
+        x = F.relu(self.gcn2(g, x))
+        return self.mlp(x)
 
 class FocalLoss(nn.Module):
-    def __init__(self, alpha=1, gamma=2, reduction='mean'):
+    def __init__(self, alpha=0.25, gamma=2):
         super(FocalLoss, self).__init__()
         self.alpha = alpha
         self.gamma = gamma
-        self.reduction = reduction
 
-    def forward(self, inputs, targets):
-        BCE_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
-        pt = torch.exp(-BCE_loss)
-        F_loss = self.alpha * (1 - pt) ** self.gamma * BCE_loss
+    def forward(self, logits, targets):
+        ##bce_loss = F.binary_cross_entropy_with_logits(logits, targets, reduction='none')
+        # Ensure targets are of type float
+        targets = targets.float()
 
-        if self.reduction == 'mean':
-            return F_loss.mean()
-        elif self.reduction == 'sum':
-            return F_loss.sum()
-        else:
-            return F_loss  
+        # Compute BCE loss
+        bce_loss = F.binary_cross_entropy_with_logits(logits, targets, reduction='none')
 
-class MLPPredictor(nn.Module):
-    def __init__(self, input_size, hidden_size):
-        super().__init__()
-        self.W1 = nn.Linear(input_size, hidden_size)
-        self.W2 = nn.Linear(hidden_size, 1)
-
-    def apply_edges(self, edges):
-        h = torch.cat([edges.src['h'], edges.dst['h']], 1)
-        return {'score': self.W2(F.relu(self.W1(h))).squeeze(1)}
-
-    def forward(self, g, h):
-        with g.local_scope():
-            g.ndata['h'] = h
-            g.apply_edges(self.apply_edges)
-            return g.edata['score']
-
+        probas = torch.sigmoid(logits)
+        pt = torch.where(targets == 1, probas, 1 - probas)
+        focal_loss = self.alpha * (1 - pt) ** self.gamma * bce_loss
+        return focal_loss.mean()
+    
