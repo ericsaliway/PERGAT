@@ -1,1596 +1,407 @@
-import os
-from matplotlib import pyplot as plt
-import numpy as np
+## (kg39) ericsali@erics-MacBook-Pro-4 gnn_pathways % python gat/__pertag_driver_gene_prediction_chebnet_gpu_usage_pass_distr_2048.py --model_type ACGNN --net_type CPDB --score_threshold 0.99 --hidden_feats 1024 --learning_rate 0.001 --num_epochs 105
+## (kg39) ericsali@erics-MacBook-Pro-4 gnn_pathways % python gat/__pertag_driver_gene_prediction_chebnet_gpu_usage_pass_distr_2048.py --model_type ACGNN --net_type HIPPIE --score_threshold 0.99 --in_feats 2048 --hidden_feats 256 --learning_rate 0.001 --num_epochs 105
+
+## (kg39) ericsali@erics-MacBook-Pro-4 gnn_pathways % python gat/__pertag_driver_gene_prediction_chebnet_gpu_usage_pass_distr_2048.py --model_type ACGNN --score_threshold 0.99 --learning_rate 0.001 --num_epochs 204
+## p_value in average predicted score
+## (kg39) ericsali@erics-MacBook-Pro-4 gnn_pathways % python gat/__pertag_driver_gene_prediction_chebnet_gpu_usage_pass_distr_2048.py --model_type ACGNN --net_type STRING --score_threshold 0.99 --learning_rate 0.001 --num_epochs 505
+## python gat/_gene_label_prediction_tsne_pertag.py --model_type Chebnet --net_type pathnet --score_threshold 0.4 --learning_rate 0.001 --num_epochs 65 
+## (kg39) ericsali@erics-MBP-4 gnn_pathways % python gat/_gene_label_prediction_tsne_sage.py --model_type EMOGI --net_type ppnet --score_threshold 0.5 --learning_rate 0.001 --num_epochs 100 
+## (kg39) ericsali@erics-MBP-4 gnn_pathways % python gat/_gene_label_prediction_tsne_pertag.py --model_type ATTAG --net_type ppnet --score_threshold 0.9 --learning_rate 0.001 --num_epochs 201
+
+import json
 import torch
-import torch.nn.functional as F
-from sklearn.metrics import roc_auc_score, f1_score, precision_score, recall_score, accuracy_score
-from sklearn.utils import resample
-from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score
-
+import numpy as np
+import os
 import matplotlib.pyplot as plt
+import seaborn as sns
+import csv
+import pandas as pd
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
+from scipy.stats import ttest_ind
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import ttest_ind
 
+from torch_geometric.nn import GCNConv
+from .models import ACGNN, HGDC, EMOGI, MTGCN, GCN, GAT, GraphSAGE, GIN, Chebnet, FocalLoss
 
-def find_evidence(row,df2):
-    # Condition 1: Match on miRNA == source and disease == destination
-    match1 = df2[(df2['miRNA'] == row['source']) & (df2['disease'] == row['destination'])]
-    
-    # Condition 2: Match on miRNA == destination and disease == source
-    match2 = df2[(df2['miRNA'] == row['destination']) & (df2['disease'] == row['source'])]
-
-    if not match1.empty:
-        return match1.iloc[0]['reference']  # Return the reference from the first match in match1
-    elif not match2.empty:
-        return match2.iloc[0]['reference']  # Return the reference from the first match in match2
+def choose_model(model_type, in_feats, hidden_feats, out_feats):
+    if model_type == 'GraphSAGE':
+        return GraphSAGE(in_feats, hidden_feats, out_feats)
+    elif model_type == 'GAT':
+        return GAT(in_feats, hidden_feats, out_feats, num_heads=1)
+    elif model_type == 'GCN':
+        return GCN(in_feats, hidden_feats, out_feats)
+    elif model_type == 'GIN':
+        return GIN(in_feats, hidden_feats, out_feats)
+    elif model_type == 'HGDC':
+        return GAT(in_feats, hidden_feats, out_feats, num_heads=1)
+    elif model_type == 'EMOGI':
+        return GAT(in_feats, hidden_feats, out_feats, num_heads=1)
+    elif model_type == 'MTGCN':
+        return GCN(in_feats, hidden_feats, out_feats)
+    elif model_type == 'Chebnet':
+        return ATTAG(in_feats, hidden_feats, out_feats)
+    elif model_type == 'ACGNN':
+        return ACGNN(in_feats, hidden_feats, out_feats)
     else:
-        return 'Unconfirmed'  # Return 'Unconfirmed' if no match is found
+        raise ValueError("Invalid model type. Choose from ['GraphSAGE', 'GAT', 'EMOGI', 'HGDC', 'MTGCN', 'GCN', 'GIN', 'Chebnet', 'ACGNN'].")
 
+def save_and_plot_results_no_error_bar_pass(predicted_above, predicted_below, degrees_above, degrees_below, avg_above, avg_below, args):
 
+    # Save predictions and degrees
+    output_dir = 'gat/results/gene_prediction/'
+    os.makedirs(output_dir, exist_ok=True)
 
+    def save_csv(data, filename, header):
+        filepath = os.path.join(output_dir, filename)
+        with open(filepath, 'w', newline='') as csvfile:
+            csvwriter = csv.writer(csvfile)
+            csvwriter.writerow(header)
+            csvwriter.writerows(data)
+        print(f"File saved: {filepath}")
 
-def plot_roc_pr_curves(fold_results, output_path):
-    plt.figure(figsize=(18, 6))
+    save_csv(predicted_above, f'{args.model_type}_above_threshold.csv', ['Gene', 'Score'])
+    save_csv(predicted_below, f'{args.model_type}_below_threshold.csv', ['Gene', 'Score'])
+    save_csv(degrees_above.items(), f'{args.model_type}_degrees_above.csv', ['Gene', 'Degree'])
+    save_csv(degrees_below.items(), f'{args.model_type}_degrees_below.csv', ['Gene', 'Degree'])
 
-    # Subplot for ROC curves
-    plt.subplot(1, 2, 1)
-    # Define the mean FPR values for interpolation
-    mean_fpr = np.linspace(0, 1, 100)
-    mean_tpr = np.zeros_like(mean_fpr)
-
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        fpr, tpr, _ = roc_curve(true_labels, predicted_scores)
-        roc_auc = auc(fpr, tpr)
-
-        # Interpolate the TPR values at the common FPR values
-        tpr_interp = np.interp(mean_fpr, fpr, tpr)
-        mean_tpr += tpr_interp
-
-        plt.plot(fpr, tpr, lw=1, alpha=1.0, label=f'Fold {i + 1} (AUC = {roc_auc:.4f})')
-
-    # Average the TPR values across folds
-    mean_tpr /= len(fold_results)
-    mean_auc = auc(mean_fpr, mean_tpr)
-
-    ##plt.plot([0, 1], [0, 1], lw=1, color='r', alpha=0.8, linestyle='--')
-    plt.plot(mean_fpr, mean_tpr, color='cyan', label=f'Mean  (AUC = {mean_auc:.4f})', lw=1.0, alpha=1.0)
-        
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('ROC Curve')
-    plt.legend(loc='lower right', fontsize='small')
-    plt.grid(False)  # Remove grid
-
-    # Subplot for PR curves
-    plt.subplot(1, 2, 2)
-    # Define the mean Recall values for interpolation
-    mean_recall = np.linspace(0, 1, 100)
-    mean_precision = np.zeros_like(mean_recall)
-
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        pr_auc = average_precision_score(true_labels, predicted_scores)
-
-        # Interpolate the Precision values at the common Recall values
-        precision_interp = np.interp(mean_recall, recall[::-1], precision[::-1])
-        mean_precision += precision_interp
-
-        plt.plot(recall, precision, lw=1, alpha=1.0, label=f'Fold {i+1} (PR = {pr_auc:.4f})')
-
-    # Average the Precision values across folds
-    mean_precision /= len(fold_results)
-    mean_auc = auc(mean_recall, mean_precision)
-
-    ##plt.plot([0, 1], [1, 0], lw=1, color='r', alpha=0.8, linestyle='--')
-    plt.plot(mean_recall, mean_precision, color='cyan', label=f'Mean  (PR = {mean_auc:.4f})', lw=1.0, alpha=1.0)
-
-
-    plt.xlabel('Recall')
-    plt.ylabel('Precision')
-    plt.title('PR Curve')
-    plt.legend(loc='lower left', fontsize='small')
-    plt.grid(False)  # Remove grid
-
-    # Adjust space between the two subplots
-    plt.subplots_adjust(wspace=0.4)  # Increase wspace value to increase the space between subplots
-
-    ##plt.tight_layout()
-    plt.savefig(output_path)
-    plt.close()
-
-
-def plot_training_validation_metrics(
-        train_accuracies, avg_train_accuracies,
-        val_accuracies, avg_val_accuracies,
-        train_losses, avg_train_losses,
-        val_losses, avg_val_losses,
-        output_path, args):
-    """
-    Plot training and validation metrics including accuracy and loss over epochs.
-
-    Parameters:
-    - train_accuracies: List of lists containing training accuracy values for each fold.
-    - avg_train_accuracies: List of average training accuracy values over epochs.
-    - val_accuracies: List of lists containing validation accuracy values for each fold.
-    - avg_val_accuracies: List of average validation accuracy values over epochs.
-    - train_losses: List of lists containing training loss values for each fold.
-    - avg_train_losses: List of average training loss values over epochs.
-    - val_losses: List of lists containing validation loss values for each fold.
-    - avg_val_losses: List of average validation loss values over epochs.
-    - output_path: Directory path to save the plot.
-    - args: Arguments containing model parameters for filename.
-    """
-    plt.figure(figsize=(12, 8))
-
-    # Plot training accuracy
-    plt.subplot(2, 2, 1)
-    for i, acc in enumerate(train_accuracies):
-        plt.plot(acc, label=f'Fold {i + 1}', linewidth=1)
-    plt.plot(avg_train_accuracies, color='cyan', label='Mean', linewidth=1, alpha=1.0)
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Training Accuracy')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Plot validation accuracy
-    plt.subplot(2, 2, 2)
-    for i, acc in enumerate(val_accuracies):
-        plt.plot(acc, label=f'Fold {i + 1}', linewidth=1)
-    plt.plot(avg_val_accuracies, color='cyan', label='Mean', linewidth=1, alpha=1.0)
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Validation Accuracy')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Plot training loss
-    plt.subplot(2, 2, 3)
-    for i, loss in enumerate(train_losses):
-        plt.plot(loss, label=f'Fold {i + 1}', linewidth=1)
-    plt.plot(avg_train_losses, color='cyan', label='Mean', linewidth=1, alpha=1.0)
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Training Loss')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Plot validation loss
-    plt.subplot(2, 2, 4)
-    for i, loss in enumerate(val_losses):
-        plt.plot(loss, label=f'Fold {i + 1}', linewidth=1)
-    plt.plot(avg_val_losses, color='cyan', label='Mean', linewidth=1, alpha=1.0)
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Validation Loss')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Adjust the horizontal space between the plots
-    plt.subplots_adjust(wspace=0.4)  # Increase the space between the columns (default is usually 0.2)
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_path, f'train_val_metrics_lr{args.lr}_lay{args.num_layers}_input{args.input_size}_dim{args.out_feats}_epoch{args.epochs}.png'))
-    plt.close()
-
-def no_mean_plot_roc_pr_curves(fold_results, output_path):
-    plt.figure(figsize=(18, 6))
-
-    # Subplot for ROC curves
-    plt.subplot(1, 2, 1)
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        fpr, tpr, _ = roc_curve(true_labels, predicted_scores)
-        roc_auc = auc(fpr, tpr)
-        plt.plot(fpr, tpr, lw=1, label=f'Fold {i + 1} (AUC = {roc_auc:.4f})')
-
-    plt.plot([0, 1], [0, 1], '--', color='salmon', lw=1) 
-
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('ROC Curve')
-    plt.legend(loc='lower right', fontsize='small')
-    plt.grid(False)  # Remove grid
-
-    # Subplot for PR curves
-    plt.subplot(1, 2, 2)
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        pr_auc = auc(recall, precision)
-        plt.plot(recall, precision, lw=1, label=f'Fold {i + 1} (PR = {pr_auc:.4f})')
-
-    # Add diagonal line with '--' style in brown with thinner line width
-    plt.plot([0, 1], [1, 0], '--', color='salmon', lw=1)  
-    
-    plt.xlabel('Recall')
-    plt.ylabel('Precision')
-    plt.title('PR Curve')
-    plt.legend(loc='lower left', fontsize='small')
-    plt.grid(False)  # Remove grid
-
-    # Adjust space between the two subplots
-    plt.subplots_adjust(wspace=0.4)  # Increase wspace value to increase the space between subplots
-
-    ##plt.tight_layout()
-    plt.savefig(output_path)
-    plt.close()
-
-def no_space_between_plot_training_validation_metrics(
-        train_accuracies, avg_train_accuracies,
-        val_accuracies, avg_val_accuracies,
-        train_losses, avg_train_losses,
-        val_losses, avg_val_losses,
-        output_path, args):
-    """
-    Plot training and validation metrics including accuracy and loss over epochs.
-
-    Parameters:
-    - train_accuracies: List of lists containing training accuracy values for each fold.
-    - avg_train_accuracies: List of average training accuracy values over epochs.
-    - val_accuracies: List of lists containing validation accuracy values for each fold.
-    - avg_val_accuracies: List of average validation accuracy values over epochs.
-    - train_losses: List of lists containing training loss values for each fold.
-    - avg_train_losses: List of average training loss values over epochs.
-    - val_losses: List of lists containing validation loss values for each fold.
-    - avg_val_losses: List of average validation loss values over epochs.
-    - output_path: Directory path to save the plot.
-    - args: Arguments containing model parameters for filename.
-    """
-    plt.figure(figsize=(12, 8))
-
-    # Plot training accuracy
-    plt.subplot(2, 2, 1)
-    for i, acc in enumerate(train_accuracies):
-        plt.plot(acc, label=f'Fold {i + 1}', linewidth=1)
-    plt.plot(avg_train_accuracies, color='cyan', label='Mean', linewidth=1, alpha=1.0)
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Training Accuracy')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Plot validation accuracy
-    plt.subplot(2, 2, 2)
-    for i, acc in enumerate(val_accuracies):
-        plt.plot(acc, label=f'Fold {i + 1}', linewidth=1)
-    plt.plot(avg_val_accuracies, color='cyan', label='Mean', linewidth=1, alpha=1.0)
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Validation Accuracy')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Plot training loss
-    plt.subplot(2, 2, 3)
-    for i, loss in enumerate(train_losses):
-        plt.plot(loss, label=f'Fold {i + 1}', linewidth=1)
-    plt.plot(avg_train_losses, color='cyan', label='Mean', linewidth=1, alpha=1.0)
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Training Loss')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Plot validation loss
-    plt.subplot(2, 2, 4)
-    for i, loss in enumerate(val_losses):
-        plt.plot(loss, label=f'Fold {i + 1}', linewidth=1)
-    plt.plot(avg_val_losses, color='cyan', label='Mean', linewidth=1, alpha=1.0)
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Validation Loss')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_path, f'train_val_metrics_lr{args.lr}_lay{args.num_layers}_input{args.input_size}_dim{args.out_feats}_epoch{args.epochs}.png'))
-    plt.close()
-
-def output_path_plot_training_validation_metrics(
-        train_accuracies, avg_train_accuracies,
-        val_accuracies, avg_val_accuracies,
-        train_losses, avg_train_losses,
-        val_losses, avg_val_losses,
-        output_path, args):
-    """
-    Plot training and validation metrics including accuracy and loss over epochs.
-
-    Parameters:
-    - train_accuracies: List of lists containing training accuracy values for each fold.
-    - avg_train_accuracies: List of average training accuracy values over epochs.
-    - val_accuracies: List of lists containing validation accuracy values for each fold.
-    - avg_val_accuracies: List of average validation accuracy values over epochs.
-    - train_losses: List of lists containing training loss values for each fold.
-    - avg_train_losses: List of average training loss values over epochs.
-    - val_losses: List of lists containing validation loss values for each fold.
-    - avg_val_losses: List of average validation loss values over epochs.
-    - output_path: Directory path to save the plot.
-    - args: Arguments containing model parameters for filename.
-    """
-    plt.figure(figsize=(12, 8))
-
-    # Plot training accuracy
-    plt.subplot(2, 2, 1)
-    for i, acc in enumerate(train_accuracies):
-        plt.plot(acc, label=f'Train Fold {i + 1}', linewidth=1)
-    plt.plot(avg_train_accuracies, color='blue', label='Mean', linewidth=1)
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Training Accuracy')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Plot validation accuracy
-    plt.subplot(2, 2, 2)
-    for i, acc in enumerate(val_accuracies):
-        plt.plot(acc, label=f'Val Fold {i + 1}', linewidth=1)
-    plt.plot(avg_val_accuracies, color='blue', label='Mean', linewidth=1)
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Validation Accuracy')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Plot training loss
-    plt.subplot(2, 2, 3)
-    for i, loss in enumerate(train_losses):
-        plt.plot(loss, label=f'Fold {i + 1}', linewidth=1)
-    plt.plot(avg_train_losses, color='blue', label='Mean', linewidth=1)
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Training Loss')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Plot validation loss
-    plt.subplot(2, 2, 4)
-    for i, loss in enumerate(val_losses):
-        plt.plot(loss, label=f'Fold {i + 1}', linewidth=1)
-    plt.plot(avg_val_losses, color='blue', label='Mean', linewidth=1)
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Validation Loss')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    plt.tight_layout()
-    plt.savefig(output_path)
-    plt.close()
-
-
-def plot_roc_curves(fold_results, output_path):
-    plt.figure(figsize=(12, 8))
-
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        fpr, tpr, _ = roc_curve(true_labels, predicted_scores)
-        plt.plot(fpr, tpr, lw=1, label=f'Fold {i + 1} (AUC = {tpr.mean():.4f})') 
-
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('ROC Curve')
-    plt.legend(loc='lower right', fontsize='small')
-    plt.grid(False)  # Remove grid
-    ##plt.tight_layout()
-
-    plt.savefig(output_path)
-    plt.close()
-def plot_pr_curves_no_diagonal_line_pass_pass(fold_results, output_path_cross_pr):
-    plt.figure(figsize=(10, 8))
-    
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        pr_auc = auc(recall, precision)
-        plt.plot(recall, precision, lw=2, label=f'Fold {i + 1} (AUC = {pr_auc:.4f})')
-    
-    plt.xlabel('Recall', fontsize=14)
-    plt.ylabel('Precision', fontsize=14)
-    plt.title('Precision-Recall Curve', fontsize=16)
-    plt.legend(loc='lower left', fontsize=12)
-    plt.grid(True)
-    plt.savefig(output_path_cross_pr, format='png')
-    plt.close()
-
-    print(f"Precision-Recall curves saved at: {output_path_cross_pr}")
-
-def plot_pr_curves(fold_results, output_path_cross_pr):
-    plt.figure(figsize=(12, 8))
-    
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        pr_auc = auc(recall, precision)
-        plt.plot(recall, precision, lw=1, label=f'Fold {i + 1} (PR = {pr_auc:.4f})')
-    
-    plt.xlabel('Recall', fontsize=14)
-    plt.ylabel('Precision', fontsize=14)
-    plt.title('Precision-Recall Curve', fontsize=16)
-    plt.legend(loc='lower left', fontsize='small')
-    plt.grid(False)
-    plt.savefig(output_path_cross_pr, format='png')
-    plt.close()
-
-    print(f"Precision-Recall curves saved at: {output_path_cross_pr}")
-
-def plot_pr_curves_(fold_results, output_path_cross_pr):
-    plt.figure(figsize=(10, 8))
-    
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        pr_auc = auc(recall, precision)
-        plt.plot(recall, precision, lw=1, label=f'Fold {i + 1} ({pr_auc:.4f})')
-    
-    ##plt.plot([0, 1], [1, 0], '--', color='salmon', lw=1)
-    
-    plt.xlabel('Recall', fontsize=14)
-    plt.ylabel('Precision', fontsize=14)
-    plt.title('PR Curve', fontsize=16)
-    plt.legend(loc='lower left', fontsize='small')
-    plt.grid(False)
-    plt.savefig(output_path_cross_pr, format='png')
-    plt.close()
-
-    print(f"Precision-Recall curves saved at: {output_path_cross_pr}")
-
-def _plot_pr_curves(fold_results, output_path_cross_pr):
-    plt.figure(figsize=(12, 8))
-    
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        pr_auc = auc(recall, precision)
-        plt.plot(recall, precision, lw=1, label=f'Fold {i + 1} ({pr_auc:.4f})')
-    
-    plt.plot([0, 1], [1, 0], '--', color='salmon', lw=1)
-    plt.xlabel('Recall', fontsize=14)
-    plt.ylabel('Precision', fontsize=14)
-    plt.title('Precision-Recall Curve', fontsize=16)
-    plt.legend(loc='lower left', fontsize='small')
-    plt.grid(False)
-    plt.savefig(output_path_cross_pr, format='png')
+    # Degree comparison barplot
+    data = pd.DataFrame({
+        'Threshold': ['Above', 'Below'],
+        'Average Degree': [avg_above, avg_below]
+    })
+    plt.figure(figsize=(8, 6))
+    sns.barplot(data=data, x='Threshold', y='Average Degree', palette="viridis")
+    plt.title('Average Degree Comparison')
+    plt.savefig(os.path.join(output_dir, f'{args.model_type}_degree_comparison.png'))
     plt.show()
 
-    print(f"Precision-Recall curves saved at: {output_path_cross_pr}")
+def plot_roc_curve(labels, scores, filename):
+    fpr, tpr, _ = roc_curve(labels, scores)
+    roc_auc = auc(fpr, tpr)
 
-def plot_pr_curves_x(fold_results, output_path_cross_pr):
-    plt.figure(figsize=(10, 8))
-    
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        pr_auc = auc(recall, precision)
-        plt.plot(recall, precision, lw=1, label=f'Fold {i + 1} ({pr_auc:.4f})')
-    
-    plt.plot([0, 1], [1, 0], '--', color='salmon', lw=1)
-    
-    plt.xlabel('Recall', fontsize=14)
-    plt.ylabel('Precision', fontsize=14)
-    plt.title('Precision-Recall Curve', fontsize=16)
-    plt.legend(fontsize='small')
-    plt.legend(loc='lower left', fontsize=12)
-    plt.grid(False)
-    plt.savefig(output_path_cross_pr, format='png')
-    plt.show()
-
-    print(f"Precision-Recall curves saved at: {output_path_cross_pr}")
-
-def plot_roc_curves_ori(fold_results, output_path):
-    plt.figure(figsize=(8, 8))
-
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        fpr, tpr, _ = roc_curve(true_labels, predicted_scores)
-        roc_auc = auc(fpr, tpr)
-        plt.plot(fpr, tpr, lw=1, label=f'Fold {i + 1} (AUC = {roc_auc:.2f})')  # Thinner lines
-
-    # Add the diagonal line with red dashed style and thinner line width
-    plt.plot([0, 1], [0, 1], 'r--', lw=1, label='Chance')
-
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver Operating Characteristic (ROC) Curve')
-    plt.legend(loc='lower right')
-    plt.grid(False)
-    plt.tight_layout()
-
-    plt.savefig(output_path)
-    plt.close()
-
-def plot_roc_curves_(fold_results, save_path):
-    plt.figure(figsize=(10, 8))
-
-    # Define the mean FPR values for interpolation
-    mean_fpr = np.linspace(0, 1, 100)
-    mean_tpr = np.zeros_like(mean_fpr)
-
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        fpr, tpr, _ = roc_curve(true_labels, predicted_scores)
-        roc_auc = auc(fpr, tpr)
-
-        # Interpolate the TPR values at the common FPR values
-        tpr_interp = np.interp(mean_fpr, fpr, tpr)
-        mean_tpr += tpr_interp
-
-        plt.plot(fpr, tpr, lw=1, alpha=0.3, label=f'ROC fold {i + 1} (AUC = {roc_auc:.4f})')
-
-    # Average the TPR values across folds
-    mean_tpr /= len(fold_results)
-    mean_auc = auc(mean_fpr, mean_tpr)
-
-    plt.plot([0, 1], [0, 1], lw=1, color='r', alpha=0.8, linestyle='--')
-    plt.plot(mean_fpr, mean_tpr, color='b', label=f'Mean ROC (AUC = {mean_auc:.4f})', lw=1.5, alpha=0.8)
-
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver Operating Characteristic (ROC)')
+    plt.figure(figsize=(8, 6))
+    plt.plot(fpr, tpr, label=f"ROC Curve (AUC = {roc_auc:.4f})", color="blue")
+    plt.plot([0, 1], [0, 1], color="salmon", linestyle="--")
+    plt.title("Receiver Operating Characteristic Curve")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
     plt.legend(loc="lower right")
-    plt.savefig(save_path)
-    plt.close()
-
-def plot_pr_curves_salmon(fold_results, output_path):
-    plt.figure(figsize=(8, 8))
-
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        plt.plot(recall, precision, lw=1, label=f'Fold {i + 1} ({precision.mean():.4f})') 
-
-    # Add diagonal line with '--' style in blue with thicker line width
-    plt.plot([0, 1], [1, 0], '--', color='salmon', lw=1)  # Line width 3
-
-    plt.xlabel('Recall')
-    plt.ylabel('Precision')
-    plt.title('Precision-Recall Curve')
-    plt.legend(loc='lower left')
-    plt.grid(False)
-    plt.tight_layout()
-
-    plt.savefig(output_path)
+    ##plt.grid(alpha=0.4)
+    plt.savefig(filename)
     plt.show()
-
-def plot_pr_curves_pas(fold_results, output_path):
-    plt.figure(figsize=(8, 8))
-
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        avg_precision = average_precision_score(true_labels, predicted_scores)
-        plt.plot(recall, precision, lw=1, label=f'Fold {i + 1} (AP = {avg_precision:.2f})')  # Thinner lines
-
-    # Add the diagonal line with red dashed style and thinner line width
-    plt.plot([0, 1], [1, 0], 'r--', lw=1, label='Chance')
-
-    plt.xlabel('Recall')
-    plt.ylabel('Precision')
-    plt.title('Precision-Recall Curve')
-    plt.legend(loc='lower left')
-    plt.grid(False)
-    plt.tight_layout()
-
-    plt.savefig(output_path)
-    plt.close()
-
-def plot_pr_curves_line_size(fold_results, output_path):
-    plt.figure(figsize=(8, 8))
-
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        avg_precision = average_precision_score(true_labels, predicted_scores)
-        plt.plot(recall, precision, lw=2, label=f'Fold {i + 1} (AP = {avg_precision:.2f})')
-
-    # Add the diagonal line with red dashed style
-    plt.plot([0, 1], [1, 0], 'r--', lw=2, label='Chance')
-
-    plt.xlabel('Recall')
-    plt.ylabel('Precision')
-    plt.title('Precision-Recall Curve')
-    plt.legend(loc='lower left')
-    plt.grid(False)
-    plt.tight_layout()
-
-    plt.savefig(output_path)
-    plt.close()
-
-def plot_pr_curves_ori(fold_results, save_path):
-    plt.figure(figsize=(10, 8))
-
-    # Define the mean Recall values for interpolation
-    mean_recall = np.linspace(0, 1, 100)
-    mean_precision = np.zeros_like(mean_recall)
-
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        pr_auc = average_precision_score(true_labels, predicted_scores)
-
-        # Interpolate the Precision values at the common Recall values
-        precision_interp = np.interp(mean_recall, recall[::-1], precision[::-1])
-        mean_precision += precision_interp
-
-        plt.plot(recall, precision, lw=1, alpha=0.3, label=f'PR fold {i+1} (AUC = {pr_auc:.4f})')
-
-    # Average the Precision values across folds
-    mean_precision /= len(fold_results)
-    mean_auc = auc(mean_recall, mean_precision)
-
-    plt.plot([0, 1], [1, 0], lw=1, color='r', alpha=0.8, linestyle='--')
-    plt.plot(mean_recall, mean_precision, color='b', label=f'Mean PR (AUC = {mean_auc:.4f})', lw=1.5, alpha=0.8)
-
-    plt.xlabel('Recall')
-    plt.ylabel('Precision')
-    plt.title('Precision-Recall (PR) Curve')
-    plt.legend(loc='lower left')
-    plt.savefig(save_path)
-    plt.close()
-
-def plot_pr_curves_no_diagonal_line_pass_pass(fold_results, output_path_cross_pr):
-    plt.figure(figsize=(10, 8))
-    
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        pr_auc = auc(recall, precision)
-        plt.plot(recall, precision, lw=2, label=f'Fold {i + 1} (AUC = {pr_auc:.4f})')
-    
-    plt.xlabel('Recall', fontsize=14)
-    plt.ylabel('Precision', fontsize=14)
-    plt.title('Precision-Recall Curve', fontsize=16)
-    plt.legend(loc='lower left', fontsize=12)
-    plt.grid(True)
-    plt.savefig(output_path_cross_pr, format='png')
-    plt.close()
-
-    print(f"Precision-Recall curves saved at: {output_path_cross_pr}")
-
-def plot_pr_curves__(fold_results, output_path_cross_pr):
-    plt.figure(figsize=(10, 8))
-    
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        pr_auc = auc(recall, precision)
-        plt.plot(recall, precision, lw=1, label=f'Fold {i + 1} ({pr_auc:.4f})')
-    
-    plt.xlabel('Recall', fontsize=14)
-    plt.ylabel('Precision', fontsize=14)
-    plt.title('Precision-Recall Curve', fontsize=16)
-    plt.legend(loc='lower left', fontsize='small')
-    plt.grid(False)
-    plt.savefig(output_path_cross_pr, format='png')
-    plt.show()
-
-    print(f"Precision-Recall curves saved at: {output_path_cross_pr}")
-
-def not_designated_plot_training_validation_metrics(
-        train_accuracies, avg_train_accuracies,
-        val_accuracies, avg_val_accuracies,
-        train_losses, avg_train_losses,
-        val_losses, avg_val_losses,
-        output_path, args):
-    """
-    Plot training and validation metrics including accuracy and loss over epochs.
-
-    Parameters:
-    - train_accuracies: List of lists containing training accuracy values for each fold.
-    - avg_train_accuracies: List of average training accuracy values over epochs.
-    - val_accuracies: List of lists containing validation accuracy values for each fold.
-    - avg_val_accuracies: List of average validation accuracy values over epochs.
-    - train_losses: List of lists containing training loss values for each fold.
-    - avg_train_losses: List of average training loss values over epochs.
-    - val_losses: List of lists containing validation loss values for each fold.
-    - avg_val_losses: List of average validation loss values over epochs.
-    - output_path: Directory path to save the plot.
-    - args: Arguments containing model parameters for filename.
-    """
-    plt.figure(figsize=(12, 8))
-
-    # Plot training accuracy
-    plt.subplot(2, 2, 1)
-    for i, acc in enumerate(train_accuracies):
-        plt.plot(acc, label=f'Train Fold {i + 1}', linewidth=1)
-    plt.plot(avg_train_accuracies, label='Average Train Accuracy', linewidth=1)
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Training Accuracy Over Epochs')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Plot validation accuracy
-    plt.subplot(2, 2, 2)
-    for i, acc in enumerate(val_accuracies):
-        plt.plot(acc, label=f'Val Fold {i + 1}', linewidth=1)
-    plt.plot(avg_val_accuracies, label='Average Val Accuracy', linewidth=1)
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Validation Accuracy Over Epochs')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Plot training loss
-    plt.subplot(2, 2, 3)
-    for i, loss in enumerate(train_losses):
-        plt.plot(loss, label=f'Train Fold {i + 1}', linewidth=1)
-    plt.plot(avg_train_losses, label='Average Train Loss', linewidth=1)
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Training Loss Over Epochs')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Plot validation loss
-    plt.subplot(2, 2, 4)
-    for i, loss in enumerate(val_losses):
-        plt.plot(loss, label=f'Val Fold {i + 1}', linewidth=1)
-    plt.plot(avg_val_losses, label='Average Val Loss', linewidth=1)
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Validation Loss Over Epochs')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_path, f'train_val_metrics_lr{args.lr}_lay{args.num_layers}_input{args.input_size}_dim{args.out_feats}_epoch{args.epochs}.png'))
-    plt.show()
-
-def average_line_plot_training_validation_metrics(
-        train_accuracies, avg_train_accuracies,
-        val_accuracies, avg_val_accuracies,
-        train_losses, avg_train_losses,
-        val_losses, avg_val_losses,
-        output_path, args):
-    """
-    Plot training and validation metrics including accuracy and loss over epochs.
-
-    Parameters:
-    - train_accuracies: List of lists containing training accuracy values for each fold.
-    - avg_train_accuracies: List of average training accuracy values over epochs.
-    - val_accuracies: List of lists containing validation accuracy values for each fold.
-    - avg_val_accuracies: List of average validation accuracy values over epochs.
-    - train_losses: List of lists containing training loss values for each fold.
-    - avg_train_losses: List of average training loss values over epochs.
-    - val_losses: List of lists containing validation loss values for each fold.
-    - avg_val_losses: List of average validation loss values over epochs.
-    - output_path: Directory path to save the plot.
-    - args: Arguments containing model parameters for filename.
-    """
-    plt.figure(figsize=(12, 8))
-
-    # Plot training accuracy
-    plt.subplot(2, 2, 1)
-    for i, acc in enumerate(train_accuracies):
-        plt.plot(acc, label=f'Train Fold {i + 1}', linewidth=1)
-    plt.plot(avg_train_accuracies, label='Average Train Accuracy', linewidth=1.5)
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Training Accuracy Over Epochs')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Plot validation accuracy
-    plt.subplot(2, 2, 2)
-    for i, acc in enumerate(val_accuracies):
-        plt.plot(acc, label=f'Val Fold {i + 1}', linewidth=1)
-    plt.plot(avg_val_accuracies, label='Average Val Accuracy', linewidth=1.5)
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Validation Accuracy Over Epochs')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Plot training loss
-    plt.subplot(2, 2, 3)
-    for i, loss in enumerate(train_losses):
-        plt.plot(loss, label=f'Train Fold {i + 1}', linewidth=1)
-    plt.plot(avg_train_losses, label='Average Train Loss', linewidth=1.5)
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Training Loss Over Epochs')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    # Plot validation loss
-    plt.subplot(2, 2, 4)
-    for i, loss in enumerate(val_losses):
-        plt.plot(loss, label=f'Val Fold {i + 1}', linewidth=1)
-    plt.plot(avg_val_losses, label='Average Val Loss', linewidth=1.5)
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Validation Loss Over Epochs')
-    plt.legend(fontsize='small')  # Make legend text smaller
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_path, f'train_val_metrics_lr{args.lr}_lay{args.num_layers}_input{args.input_size}_dim{args.out_feats}_epoch{args.epochs}.png'))
-    plt.show()
-
-def _plot_training_validation_metrics(
-        train_accuracies, avg_train_accuracies,
-        val_accuracies, avg_val_accuracies,
-        train_losses, avg_train_losses,
-        val_losses, avg_val_losses,
-        output_path, args):
-    """
-    Plot training and validation metrics including accuracy and loss over epochs.
-
-    Parameters:
-    - train_accuracies: List of lists containing training accuracy values for each fold.
-    - avg_train_accuracies: List of average training accuracy values over epochs.
-    - val_accuracies: List of lists containing validation accuracy values for each fold.
-    - avg_val_accuracies: List of average validation accuracy values over epochs.
-    - train_losses: List of lists containing training loss values for each fold.
-    - avg_train_losses: List of average training loss values over epochs.
-    - val_losses: List of lists containing validation loss values for each fold.
-    - avg_val_losses: List of average validation loss values over epochs.
-    - output_path: Directory path to save the plot.
-    - args: Arguments containing model parameters for filename.
-    """
-    plt.figure(figsize=(12, 8))
-
-    # Plot training accuracy
-    plt.subplot(2, 2, 1)
-    for i, acc in enumerate(train_accuracies):
-        plt.plot(acc, label=f'Train Fold {i + 1}', linewidth=1)
-    plt.plot(avg_train_accuracies, color='blue', label='Average Train Accuracy', linewidth=1)
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Training Accuracy Over Epochs')
-    plt.legend()
-
-    # Plot validation accuracy
-    plt.subplot(2, 2, 2)
-    for i, acc in enumerate(val_accuracies):
-        plt.plot(acc, label=f'Val Fold {i + 1}', linewidth=1)
-    plt.plot(avg_val_accuracies, color='blue', label='Average Val Accuracy', linewidth=1.5)
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Validation Accuracy Over Epochs')
-    plt.legend()
-
-    # Plot training loss
-    plt.subplot(2, 2, 3)
-    for i, loss in enumerate(train_losses):
-        plt.plot(loss, label=f'Train Fold {i + 1}', linewidth=1)
-    plt.plot(avg_train_losses, color='blue', label='Average Train Loss', linewidth=1.5)
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Training Loss Over Epochs')
-    plt.legend()
-
-    # Plot validation loss
-    plt.subplot(2, 2, 4)
-    for i, loss in enumerate(val_losses):
-        plt.plot(loss, label=f'Val Fold {i + 1}', linewidth=1)
-    plt.plot(avg_val_losses, color='blue', label='Average Val Loss', linewidth=1.5)
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Validation Loss Over Epochs')
-    plt.legend()
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_path, f'train_val_metrics_lr{args.lr}_lay{args.num_layers}_input{args.input_size}_dim{args.out_feats}_epoch{args.epochs}.png'))
-    plt.show()
-
-def not_small_line_size_plot_training_validation_metrics(
-        train_accuracies, avg_train_accuracies,
-        val_accuracies, avg_val_accuracies,
-        train_losses, avg_train_losses,
-        val_losses, avg_val_losses,
-        output_path, args):
-    """
-    Plot training and validation metrics including accuracy and loss over epochs.
-
-    Parameters:
-    - train_accuracies: List of lists containing training accuracy values for each fold.
-    - avg_train_accuracies: List of average training accuracy values over epochs.
-    - val_accuracies: List of lists containing validation accuracy values for each fold.
-    - avg_val_accuracies: List of average validation accuracy values over epochs.
-    - train_losses: List of lists containing training loss values for each fold.
-    - avg_train_losses: List of average training loss values over epochs.
-    - val_losses: List of lists containing validation loss values for each fold.
-    - avg_val_losses: List of average validation loss values over epochs.
-    - output_path: Directory path to save the plot.
-    - args: Arguments containing model parameters for filename.
-    """
-    plt.figure(figsize=(12, 8))
-
-    # Plot training accuracy
-    plt.subplot(2, 2, 1)
-    for i, acc in enumerate(train_accuracies):
-        plt.plot(acc, label=f'Train Fold {i + 1}')
-    plt.plot(avg_train_accuracies, color='blue', label='Average Train Accuracy')
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Training Accuracy Over Epochs')
-    plt.legend()
-
-    # Plot validation accuracy
-    plt.subplot(2, 2, 2)
-    for i, acc in enumerate(val_accuracies):
-        plt.plot(acc, label=f'Val Fold {i + 1}')
-    plt.plot(avg_val_accuracies, color='blue', label='Average Val Accuracy')
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Validation Accuracy Over Epochs')
-    plt.legend()
-
-    # Plot training loss
-    plt.subplot(2, 2, 3)
-    for i, loss in enumerate(train_losses):
-        plt.plot(loss, label=f'Train Fold {i + 1}')
-    plt.plot(avg_train_losses, color='blue', label='Average Train Loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Training Loss Over Epochs')
-    plt.legend()
-
-    # Plot validation loss
-    plt.subplot(2, 2, 4)
-    for i, loss in enumerate(val_losses):
-        plt.plot(loss, label=f'Val Fold {i + 1}')
-    plt.plot(avg_val_losses, color='blue', label='Average Val Loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Validation Loss Over Epochs')
-    plt.legend()
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_path, f'train_val_metrics_lr{args.lr}_lay{args.num_layers}_input{args.input_size}_dim{args.out_feats}_epoch{args.epochs}.png'))
-    plt.show()
-
-def plot_validation_accuracy(accuracies, avg_accuracies, output_path, args):
-    """
-    Plot validation accuracy over epochs for each fold and the average accuracy.
-    
-    Parameters:
-    - accuracies: List of lists containing accuracy values for each fold.
-    - avg_accuracies: List of average accuracy values over epochs.
-    - output_path: Directory path to save the plot.
-    - args: Arguments containing model parameters for filename.
-    """
-    plt.figure(figsize=(10, 6))
-    for i, acc in enumerate(accuracies):
-        plt.plot(acc, label=f'Fold {i + 1}')
-    plt.plot(avg_accuracies, color='blue', label='Average Accuracy')
-    plt.xlabel('Epochs')
-    plt.ylabel('Validation Accuracy')
-    plt.title('Validation Accuracy Over Epochs')
-    plt.legend()
-    plt.savefig(os.path.join(output_path, f'accuracy_lr{args.lr}_lay{args.num_layers}_input{args.input_size}_dim{args.out_feats}_epoch{args.epochs}.png'))
-    plt.show()
-
-def plot_loss(losses, avg_losses, output_path, args):
-    """
-    Plot loss over epochs for each fold and the average loss.
-    
-    Parameters:
-    - losses: List of lists containing loss values for each fold.
-    - avg_losses: List of average loss values over epochs.
-    - output_path: Directory path to save the plot.
-    - args: Arguments containing model parameters for filename.
-    """
-    plt.figure(figsize=(10, 6))
-    for i, loss in enumerate(losses):
-        plt.plot(loss, label=f'Fold {i + 1}')
-    plt.plot(avg_losses, color='blue', label='Average Loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Loss Over Epochs')
-    plt.legend()
-    plt.savefig(os.path.join(output_path, f'loss_lr{args.lr}_lay{args.num_layers}_input{args.input_size}_dim{args.out_feats}_epoch{args.epochs}.png'))
-    plt.show()
-
-'''def plot_roc_curves(fold_results, save_path):
-    plt.figure(figsize=(10, 8))
-
-    # Define the mean FPR values for interpolation
-    mean_fpr = np.linspace(0, 1, 100)
-    mean_tpr = np.zeros_like(mean_fpr)
-
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        fpr, tpr, _ = roc_curve(true_labels, predicted_scores)
-        roc_auc = auc(fpr, tpr)
-
-        # Interpolate the TPR values at the common FPR values
-        tpr_interp = np.interp(mean_fpr, fpr, tpr)
-        mean_tpr += tpr_interp
-
-        plt.plot(fpr, tpr, lw=1, alpha=0.3, label=f'ROC fold {i + 1} (AUC = {roc_auc:.4f})')
-
-    # Average the TPR values across folds
-    mean_tpr /= len(fold_results)
-    mean_auc = auc(mean_fpr, mean_tpr)
-
-    plt.plot([0, 1], [0, 1], lw=1, color='r', alpha=0.8)
-    plt.plot(mean_fpr, mean_tpr, color='b', label=f'Mean ROC (AUC = {mean_auc:.4f})', lw=1.5, alpha=0.8)
-
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver Operating Characteristic (ROC)')
-    plt.legend(loc="lower right")
-    plt.savefig(save_path)
-    plt.close()
-
-def plot_pr_curves(fold_results, save_path):
-    plt.figure(figsize=(10, 8))
-
-    # Define the mean Recall values for interpolation
-    mean_recall = np.linspace(0, 1, 100)
-    mean_precision = np.zeros_like(mean_recall)
-
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        pr_auc = average_precision_score(true_labels, predicted_scores)
-
-        # Interpolate the Precision values at the common Recall values
-        precision_interp = np.interp(mean_recall, recall[::-1], precision[::-1])
-        mean_precision += precision_interp
-
-        plt.plot(recall, precision, lw=1, alpha=0.3, label=f'PR fold {i+1} (AUC = {pr_auc:.4f})')
-
-    # Average the Precision values across folds
-    mean_precision /= len(fold_results)
-    mean_auc = auc(mean_recall, mean_precision)
-
-    plt.plot([0, 1], [1, 0], lw=1, color='r', alpha=0.8)
-    plt.plot(mean_recall, mean_precision, color='b', label=f'Mean PR (AUC = {mean_auc:.4f})', lw=1.5, alpha=0.8)
-
-    plt.xlabel('Recall')
-    plt.ylabel('Precision')
-    plt.title('Precision-Recall (PR) Curve')
-    plt.legend(loc='lower left')
-    plt.savefig(save_path)
-    plt.close()
-'''
-
-'''def plot_roc_curves(fold_results, save_path):
-    plt.figure(figsize=(10, 8))
-
-    # Define the mean FPR values for interpolation
-    mean_fpr = np.linspace(0, 1, 100)
-    mean_tpr = np.zeros_like(mean_fpr)
-
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        fpr, tpr, _ = roc_curve(true_labels, predicted_scores)
-        roc_auc = auc(fpr, tpr)
-
-        # Interpolate the TPR values at the common FPR values
-        tpr_interp = np.interp(mean_fpr, fpr, tpr)
-        mean_tpr += tpr_interp
-
-        plt.plot(fpr, tpr, lw=2, alpha=0.3, label=f'ROC fold {i + 1} (AUC = {roc_auc:.4f})')
-
-    # Average the TPR values across folds
-    mean_tpr /= len(fold_results)
-    mean_auc = auc(mean_fpr, mean_tpr)
-
-    plt.plot([0, 1], [0, 1], lw=2, color='r', alpha=0.8)
-    plt.plot(mean_fpr, mean_tpr, color='b', label=f'Mean ROC (AUC = {mean_auc:.4f})', lw=2, alpha=0.8)
-
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver Operating Characteristic (ROC)')
-    plt.legend(loc="lower right")
-    plt.savefig(save_path)
-    plt.close()
-
-def plot_pr_curves(fold_results, save_path):
-    plt.figure(figsize=(10, 8))
-
-    # Define the mean Recall values for interpolation
-    mean_recall = np.linspace(0, 1, 100)
-    mean_precision = np.zeros_like(mean_recall)
-
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        pr_auc = average_precision_score(true_labels, predicted_scores)
-
-        # Interpolate the Precision values at the common Recall values
-        precision_interp = np.interp(mean_recall, recall[::-1], precision[::-1])
-        mean_precision += precision_interp
-
-        plt.plot(recall, precision, lw=2, alpha=0.3, label=f'PR fold {i+1} (AUC = {pr_auc:.4f})')
-
-    # Average the Precision values across folds
-    mean_precision /= len(fold_results)
-    mean_auc = auc(mean_recall, mean_precision)
-
-    plt.plot([0, 1], [1, 0], lw=2, color='r', alpha=0.8)
-    plt.plot(mean_recall, mean_precision, color='b', label=f'Mean PR (AUC = {mean_auc:.4f})', lw=2, alpha=0.8)
-
-    plt.xlabel('Recall')
-    plt.ylabel('Precision')
-    plt.title('Precision-Recall (PR) Curve')
-    plt.legend(loc='lower left')
-    plt.savefig(save_path)
-    plt.close()
-'''
-def no_mean_plot_pr_curves(fold_results, save_path):
-    plt.figure()
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        pr_auc = average_precision_score(true_labels, predicted_scores)
-        plt.plot(recall, precision, lw=2, label=f'PR fold {i+1} (AUC = {pr_auc:.4f})')
-
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('Recall')
-    plt.ylabel('Precision')
-    plt.title('PR Curves for All Folds')
-    plt.legend(loc='lower left')
-    plt.savefig(save_path)
-    plt.close()
-   
-def plot_precision_recall_curves(fold_results, save_path):
-    plt.figure(figsize=(10, 8))
-
-    all_recall_interp = np.linspace(0, 1, 100)
-    mean_precision = np.zeros_like(all_recall_interp)
-
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        pr_auc = auc(recall, precision)
-        
-        # Interpolating precision at fixed recall values
-        precision_interp = np.interp(all_recall_interp, recall[::-1], precision[::-1])
-        mean_precision += precision_interp
-        
-        plt.plot(recall, precision, lw=2, alpha=0.3, label=f'PR fold {i + 1} (AUC = {pr_auc:.4f})')
-
-    mean_precision /= len(fold_results)
-    mean_pr_auc = auc(all_recall_interp, mean_precision)
-    
-    plt.plot(all_recall_interp, mean_precision, color='b', label=f'Mean PR (AUC = {mean_pr_auc:.4f})', lw=2, alpha=0.8)
-
-    plt.xlabel('Recall')
-    plt.ylabel('Precision')
-    plt.title('Precision vs Recall Curve')
+    print(f"ROC Curve saved to {filename}")
+
+def plot_pr_curve(labels, scores, filename):
+    precision, recall, _ = precision_recall_curve(labels, scores)
+    pr_auc = auc(recall, precision)
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(recall, precision, label=f"PR Curve (AUC = {pr_auc:.4f})", color="green")
+    ##plt.plot([0, 1], [1, 0], color="salmon", linestyle="--")
+    plt.title("Precision-Recall Curve")
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
     plt.legend(loc="lower left")
-    plt.savefig(save_path)
-    plt.close()
-    
-def compute_loss(pos_score, neg_score):
-    scores = torch.cat([pos_score, neg_score])
-    labels = torch.cat([torch.ones(pos_score.shape[0]), torch.zeros(neg_score.shape[0])])
-    return F.binary_cross_entropy_with_logits(scores, labels)
+    ##plt.grid(alpha=0.4)
+    plt.savefig(filename)
+    plt.show()
+    print(f"Precision-Recall Curve saved to {filename}")
 
-def compute_auc(pos_score, neg_score):
-    scores = torch.cat([pos_score, neg_score]).numpy()
-    labels = torch.cat([torch.ones(pos_score.shape[0]), torch.zeros(neg_score.shape[0])]).numpy()
-    return roc_auc_score(labels, scores)
+def load_graph_data(file_path):
+    with open(file_path, 'r') as f:
+        data = json.load(f)
 
-def compute_f1(pos_score, neg_score):
-    scores = torch.cat([pos_score, neg_score]).numpy()
-    pos_labels = np.ones(pos_score.shape[0])
-    neg_labels = np.zeros(neg_score.shape[0])
-    labels = np.concatenate([pos_labels, neg_labels])
-    threshold = 0.5  # Define threshold for binary classification
-    preds_binary = (scores > threshold).astype(int)
-    return f1_score(labels, preds_binary, zero_division=1) 
+    nodes = {}
+    edges = []
+    labels = []
+    embeddings = []
 
-def compute_accuracy(pos_score, neg_score):
-    scores = torch.cat([pos_score, neg_score]).numpy()
-    pos_labels = np.ones(pos_score.shape[0])
-    neg_labels = np.zeros(neg_score.shape[0])
-    labels = np.concatenate([pos_labels, neg_labels])
-    threshold = 0.5  # Define threshold for binary classification
-    preds_binary = (scores > threshold).astype(int)
-    return accuracy_score(labels, preds_binary)
+    for entry in data:
+        source = entry["source"]["properties"]
+        target = entry["target"]["properties"]
+        relation = entry["relation"]["type"]
 
-def compute_precision(pos_score, neg_score):
-    scores = torch.cat([pos_score, neg_score]).numpy()
-    pos_labels = np.ones(pos_score.shape[0])
-    neg_labels = np.zeros(neg_score.shape[0])
-    labels = np.concatenate([pos_labels, neg_labels])
-    threshold = 0.5  # Define threshold for binary classification
-    preds_binary = (scores > threshold).astype(int)
-    return precision_score(labels, preds_binary, zero_division=1) 
+        # Add source node
+        if source["name"] not in nodes:
+            nodes[source["name"]] = len(nodes)
+            embeddings.append(source["embedding"])
+            labels.append(source.get("label", -1) if source.get("label") is not None else -1)
 
-def compute_recall(pos_score, neg_score):
-    scores = torch.cat([pos_score, neg_score]).numpy()
-    pos_labels = np.ones(pos_score.shape[0])
-    neg_labels = np.zeros(neg_score.shape[0])
-    labels = np.concatenate([pos_labels, neg_labels])
-    threshold = 0.5  # Define threshold for binary classification
-    preds_binary = (scores > threshold).astype(int)
-    return recall_score(labels, preds_binary, zero_division=1) 
+        # Add target node
+        if target["name"] not in nodes:
+            nodes[target["name"]] = len(nodes)
+            embeddings.append(target["embedding"])
+            labels.append(target.get("label", -1) if target.get("label") is not None else -1)
 
+        # Add edge
+        edges.append((nodes[source["name"]], nodes[target["name"]]))
 
-def compute_hits_k(pos_score, neg_score, k=10):
-    scores = torch.cat([pos_score, neg_score]).detach().numpy()
-    labels = torch.cat([torch.ones(pos_score.shape[0]), torch.zeros(neg_score.shape[0])]).detach().numpy()
-    ranked_scores = np.argsort(-scores)  # Rank in descending order
-    top_k = ranked_scores[:k]
-    return np.mean(labels[top_k])
+    # Convert embeddings and labels to tensors
+    embeddings_tensor = torch.tensor(embeddings, dtype=torch.float32)
+    labels_tensor = torch.tensor(labels, dtype=torch.long)
 
-def compute_map(pos_score, neg_score):
-    scores = torch.cat([pos_score, neg_score]).detach().numpy()
-    labels = torch.cat([torch.ones(pos_score.shape[0]), torch.zeros(neg_score.shape[0])]).detach().numpy()
-    ranked_indices = np.argsort(-scores)  # Rank in descending order
-    sorted_labels = labels[ranked_indices]
+    return nodes, edges, embeddings_tensor, labels_tensor
 
-    precisions = []
-    relevant_docs = 0
-    for i, label in enumerate(sorted_labels):
-        if label == 1:
-            relevant_docs += 1
-            precisions.append(relevant_docs / (i + 1))
-    
-    if len(precisions) == 0:
-        return 0.0
-    
-    return np.mean(precisions)
+def load_oncokb_genes(filepath):
+    with open(filepath, 'r') as f:
+        return set(line.strip() for line in f)
 
-
-def compute_map_k(pos_score, neg_score, k=None):
-    scores = torch.cat([pos_score, neg_score]).detach().numpy()
-    labels = torch.cat([torch.ones(pos_score.shape[0]), torch.zeros(neg_score.shape[0])]).detach().numpy()
-    ranked_indices = np.argsort(-scores)  # Rank in descending order
-    sorted_labels = labels[ranked_indices]
-
-    if k is not None:
-        sorted_labels = sorted_labels[:k]
-
-    precisions = []
-    relevant_docs = 0
-    for i, label in enumerate(sorted_labels):
-        if label == 1:
-            relevant_docs += 1
-            precisions.append(relevant_docs / (i + 1))
-
-    if len(precisions) == 0:
-        return 0.0
-
-    return np.mean(precisions)
-
-
-
-# Define new metric functions with confidence intervals
-'''
-def compute_loss(pos_score, neg_score):
-    scores = torch.cat([pos_score, neg_score])
-    labels = torch.cat([torch.ones(pos_score.shape[0]), torch.zeros(neg_score.shape[0])])
-    return F.binary_cross_entropy_with_logits(scores, labels)
-
-def compute_auc(pos_score, neg_score):
-    scores = torch.cat([pos_score, neg_score]).numpy()
-    labels = torch.cat([torch.ones(pos_score.shape[0]), torch.zeros(neg_score.shape[0])]).numpy()
-    return roc_auc_score(labels, scores)
-
-def compute_f1(pos_score, neg_score):
-    scores = torch.cat([pos_score, neg_score]).numpy()
-    pos_labels = np.ones(pos_score.shape[0])
-    neg_labels = np.zeros(neg_score.shape[0])
-    labels = np.concatenate([pos_labels, neg_labels])
-    threshold = 0.5  # Define threshold for binary classification
-    preds_binary = (scores > threshold).astype(int)
-    return f1_score(labels, preds_binary)
-
-def compute_accuracy(pos_score, neg_score):
-    scores = torch.cat([pos_score, neg_score]).numpy()
-    pos_labels = np.ones(pos_score.shape[0])
-    neg_labels = np.zeros(neg_score.shape[0])
-    labels = np.concatenate([pos_labels, neg_labels])
-    threshold = 0.5  # Define threshold for binary classification
-    preds_binary = (scores > threshold).astype(int)
-    return accuracy_score(labels, preds_binary)
-
-def compute_precision(pos_score, neg_score):
-    scores = torch.cat([pos_score, neg_score]).numpy()
-    pos_labels = np.ones(pos_score.shape[0])
-    neg_labels = np.zeros(neg_score.shape[0])
-    labels = np.concatenate([pos_labels, neg_labels])
-    threshold = 0.5  # Define threshold for binary classification
-    preds_binary = (scores > threshold).astype(int)
-    return precision_score(labels, preds_binary)
-
-def compute_recall(pos_score, neg_score):
-    scores = torch.cat([pos_score, neg_score]).numpy()
-    pos_labels = np.ones(pos_score.shape[0])
-    neg_labels = np.zeros(neg_score.shape[0])
-    labels = np.concatenate([pos_labels, neg_labels])
-    threshold = 0.5  # Define threshold for binary classification
-    preds_binary = (scores > threshold).astype(int)
-    return recall_score(labels, preds_binary)
-
-def compute_hits_k(pos_score, neg_score, k=10):
-    scores = torch.cat([pos_score, neg_score]).detach().numpy()
-    labels = torch.cat([torch.ones(pos_score.shape[0]), torch.zeros(neg_score.shape[0])]).detach().numpy()
-    ranked_scores = np.argsort(-scores)  # Rank in descending order
-    top_k = ranked_scores[:k]
-    return np.mean(labels[top_k])
-
-def compute_map(pos_score, neg_score):
-    scores = torch.cat([pos_score, neg_score]).detach().numpy()
-    labels = torch.cat([torch.ones(pos_score.shape[0]), torch.zeros(neg_score.shape[0])]).detach().numpy()
-    ranked_indices = np.argsort(-scores)  # Rank in descending order
-    sorted_labels = labels[ranked_indices]
-
-    precisions = []
-    relevant_docs = 0
-    for i, label in enumerate(sorted_labels):
-        if label == 1:
-            relevant_docs += 1
-            precisions.append(relevant_docs / (i + 1))
-    
-    if len(precisions) == 0:
-        return 0.0
-    
-    return np.mean(precisions)
-
-def compute_map_k(pos_score, neg_score, k=None):
-    scores = torch.cat([pos_score, neg_score]).detach().numpy()
-    labels = torch.cat([torch.ones(pos_score.shape[0]), torch.zeros(neg_score.shape[0])]).detach().numpy()
-    ranked_indices = np.argsort(-scores)  # Rank in descending order
-    sorted_labels = labels[ranked_indices]
-
-    if k is not None:
-        sorted_labels = sorted_labels[:k]
-
-    precisions = []
-    relevant_docs = 0
-    for i, label in enumerate(sorted_labels):
-        if label == 1:
-            relevant_docs += 1
-            precisions.append(relevant_docs / (i + 1))
-
-    if len(precisions) == 0:
-        return 0.0
-
-    return np.mean(precisions)
-'''
-
-def plot_roc_curves(fold_results, output_path):
-    plt.figure(figsize=(12, 8))
-
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        fpr, tpr, _ = roc_curve(true_labels, predicted_scores)
-        plt.plot(fpr, tpr, lw=1, label=f'Fold {i + 1} (AUC = {tpr.mean():.4f})') 
-
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('ROC Curve')
-    plt.legend(loc='lower right', fontsize='small')
-    plt.grid(False)  # Remove grid
-    ##plt.tight_layout()
-
-    plt.savefig(output_path)
-    plt.close()
-
-def plot_pr_curves(fold_results, output_path_cross_pr):
-    plt.figure(figsize=(12, 8))
-    
-    for i, (true_labels, predicted_scores) in enumerate(fold_results):
-        precision, recall, _ = precision_recall_curve(true_labels, predicted_scores)
-        pr_auc = auc(recall, precision)
-        plt.plot(recall, precision, lw=1, label=f'Fold {i + 1} (PR = {pr_auc:.4f})')
-    
-    plt.xlabel('Recall', fontsize=14)
-    plt.ylabel('Precision', fontsize=14)
-    plt.title('Precision-Recall Curve', fontsize=16)
-    plt.legend(loc='lower left', fontsize='small')
-    plt.grid(False)
-    plt.savefig(output_path_cross_pr, format='png')
-    plt.close()
-
-    print(f"Precision-Recall curves saved at: {output_path_cross_pr}")
-
-# Define new metric functions with confidence intervals
-
-def compute_accuracy_with_symmetrical_confidence(pos_score, neg_score, n_bootstraps=1000, confidence_level=0.95):
-    def compute_accuracy(pos_score, neg_score):
-        scores = torch.cat([pos_score, neg_score]).numpy()
-        pos_labels = np.ones(pos_score.shape[0])
-        neg_labels = np.zeros(neg_score.shape[0])
-        labels = np.concatenate([pos_labels, neg_labels])
-        threshold = 0.5
-        preds_binary = (scores > threshold).astype(int)
-        return accuracy_score(labels, preds_binary)
-    
-    initial_accuracy = compute_accuracy(pos_score, neg_score)
-    error_range = bootstrap_confidence_interval(compute_accuracy, pos_score, neg_score, n_bootstraps, confidence_level)
-    
-    return initial_accuracy, error_range
-
-def compute_precision_with_symmetrical_confidence(pos_score, neg_score, n_bootstraps=1000, confidence_level=0.95):
-    def compute_precision(pos_score, neg_score):
-        scores = torch.cat([pos_score, neg_score]).numpy()
-        pos_labels = np.ones(pos_score.shape[0])
-        neg_labels = np.zeros(neg_score.shape[0])
-        labels = np.concatenate([pos_labels, neg_labels])
-        threshold = 0.5
-        preds_binary = (scores > threshold).astype(int)
-        return precision_score(labels, preds_binary, zero_division=1)
-    
-    initial_precision = compute_precision(pos_score, neg_score)
-    error_range = bootstrap_confidence_interval(compute_precision, pos_score, neg_score, n_bootstraps, confidence_level)
-    
-    return initial_precision, error_range
-
-def compute_f1_with_symmetrical_confidence(pos_score, neg_score, n_bootstraps=1000, confidence_level=0.95):
-    def compute_f1(pos_score, neg_score):
-        scores = torch.cat([pos_score, neg_score]).numpy()
-        pos_labels = np.ones(pos_score.shape[0])
-        neg_labels = np.zeros(neg_score.shape[0])
-        labels = np.concatenate([pos_labels, neg_labels])
-        threshold = 0.5
-        preds_binary = (scores > threshold).astype(int)
-        return f1_score(labels, preds_binary, zero_division=1)
-    
-    initial_f1 = compute_f1(pos_score, neg_score)
-    error_range = bootstrap_confidence_interval(compute_f1, pos_score, neg_score, n_bootstraps, confidence_level)
-    
-    return initial_f1, error_range
-
-
-def compute_focalloss(pos_score, neg_score, alpha=1, gamma=2):
-    scores = torch.cat([pos_score, neg_score])
-    labels = torch.cat([torch.ones(pos_score.shape[0]), torch.zeros(neg_score.shape[0])])
-    BCE_loss = F.binary_cross_entropy_with_logits(scores, labels, reduction='none')
-    pt = torch.exp(-BCE_loss)
-    F_loss = alpha * (1 - pt) ** gamma * BCE_loss
-    return F_loss.mean().item()
-
-def compute_focalloss_with_symmetrical_confidence(pos_score, neg_score, alpha=1, gamma=2, n_bootstraps=1000, confidence_level=0.95):
-    initial_focal_loss = compute_focalloss(pos_score, neg_score, alpha, gamma)
-    error_range = bootstrap_confidence_interval(
-        lambda pos, neg: compute_focalloss(pos, neg, alpha, gamma),
-        pos_score, neg_score, n_bootstraps, confidence_level
+def plot_and_analyze_ori(args):
+    # File path for the saved predictions
+    csv_file_path = os.path.join(
+        'gat/results/gene_prediction/',
+        f'{args.model_type}_{args.net_type}_predicted_scores_threshold{args.score_threshold}_epo{args.num_epochs}.csv'
     )
-    return initial_focal_loss, error_range
 
-def compute_loss_with_symmetrical_confidence(pos_score, neg_score, n_bootstraps=1000, confidence_level=0.95):
-    def compute_loss(pos_score, neg_score):
-        scores = torch.cat([pos_score, neg_score]).numpy()
-        pos_labels = np.ones(pos_score.shape[0])
-        neg_labels = np.zeros(neg_score.shape[0])
-        labels = np.concatenate([pos_labels, neg_labels])
-        threshold = 0.5
-        preds_binary = (scores > threshold).astype(int)
-        return loss_score(labels, preds_binary)
+    results = []
+
+    # Read the CSV file
+    with open(csv_file_path, mode='r') as file:
+        reader = csv.reader(file)
+        next(reader)  # Skip header
+        for row in reader:
+            node_name, score, label = row
+            score = float(score)
+            label = int(label)
+            results.append((node_name, score, label))
+            
+            # Check if label is 0 and print the row
+            if label == 0:
+                print(f"Node Name: {node_name}, Score: {score}, Label: {label}")
+
+
+    # Extract scores and labels
+    scores = np.array([row[1] for row in results])
+    labels = np.array([row[2] for row in results])
     
-    initial_f1 = compute_loss(pos_score, neg_score)
-    error_range = bootstrap_confidence_interval(compute_loss, pos_score, neg_score, n_bootstraps, confidence_level)
-    
-    return initial_f1, error_range
 
-def compute_loss(pos_score, neg_score):
-    scores = torch.cat([pos_score, neg_score])
-    labels = torch.cat([torch.ones(pos_score.shape[0]), torch.zeros(neg_score.shape[0])])
-    return F.binary_cross_entropy_with_logits(scores, labels)
+    # Define group labels in the desired order
+    group_labels = [1, 2, 0, 3]
+    average_scores = []
 
-def compute_auc_with_symmetrical_confidence(pos_score, neg_score, n_bootstraps=1000, confidence_level=0.95):
-    def compute_auc(pos_score, neg_score):
-        scores = torch.cat([pos_score, neg_score]).numpy()
-        labels = torch.cat([torch.ones(pos_score.shape[0]), torch.zeros(neg_score.shape[0])]).numpy()
-        return roc_auc_score(labels, scores)
-    
-    initial_auc = compute_auc(pos_score, neg_score)
-    error_range = bootstrap_confidence_interval(compute_auc, pos_score, neg_score, n_bootstraps, confidence_level)
-    
-    return initial_auc, error_range
+    # Calculate average scores for each group
+    for label in group_labels:
+        group_scores = scores[labels == label]
+        avg_score = np.mean(group_scores) if len(group_scores) > 0 else 0.0
+        average_scores.append(avg_score)
 
-def compute_recall_with_symmetrical_confidence(pos_score, neg_score, n_bootstraps=1000, confidence_level=0.95):
-    def compute_recall(pos_score, neg_score):
-        scores = torch.cat([pos_score, neg_score]).numpy()
-        pos_labels = np.ones(pos_score.shape[0])
-        neg_labels = np.zeros(neg_score.shape[0])
-        labels = np.concatenate([pos_labels, neg_labels])
-        threshold = 0.5
-        preds_binary = (scores > threshold).astype(int)
-        return recall_score(labels, preds_binary, zero_division=1)
-    
-    initial_recall = compute_recall(pos_score, neg_score)
-    error_range = bootstrap_confidence_interval(compute_recall, pos_score, neg_score, n_bootstraps, confidence_level)
-    
-    return initial_recall, error_range
+    # Perform statistical tests to calculate p-values
+    p_values = {}
+    comparisons = [(1, 2), (1, 0), (1, 3)]  # Pairs to compare
+    for group1, group2 in comparisons:
+        scores1 = scores[labels == group1]
+        scores2 = scores[labels == group2]
+        if len(scores1) > 1 and len(scores2) > 1:
+            _, p_value = ttest_ind(scores1, scores2, equal_var=False)
+            p_values[(group1, group2)] = p_value
+        else:
+            p_values[(group1, group2)] = np.nan
 
-def compute_map_with_symmetrical_confidence(pos_score, neg_score, n_bootstraps=1000, confidence_level=0.95):
-    def compute_map(pos_score, neg_score):
-        scores = torch.cat([pos_score, neg_score]).detach().numpy()
-        labels = torch.cat([torch.ones(pos_score.shape[0]), torch.zeros(neg_score.shape[0])]).detach().numpy()
-        ranked_indices = np.argsort(-scores)
-        sorted_labels = labels[ranked_indices]
+    # Save average scores and p-values to another CSV
+    avg_csv_path = os.path.join(
+        'gat/results/gene_prediction/',
+        f'{args.model_type}_{args.net_type}_group_avg_scores_pvalues_epo{args.num_epochs}_2048.csv'
+    )
+    os.makedirs(os.path.dirname(avg_csv_path), exist_ok=True)
+    with open(avg_csv_path, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['Group Label', 'Average Score', 'Comparison', 'P-Value'])
+        for label, avg_score in zip(group_labels, average_scores):
+            writer.writerow([f'Group {label}', avg_score, '', ''])
+        for (group1, group2), p_value in p_values.items():
+            writer.writerow(['', '', f'Group {group1} vs Group {group2}', p_value])
+    print(f"Average scores and p-values saved to {avg_csv_path}")
 
-        precisions = []
-        relevant_docs = 0
-        for i, label in enumerate(sorted_labels):
-            if label == 1:
-                relevant_docs += 1
-                precisions.append(relevant_docs / (i + 1))
+    # Plot the bar chart
+    plt.figure(figsize=(8, 6))
+    bars = plt.bar(range(len(group_labels)), average_scores,
+                   color=['green', 'red', 'blue', 'orange'], edgecolor='black', alpha=0.8)
+    for bar, avg_score in zip(bars, average_scores):
+        plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f'{avg_score:.4f}',
+                 ha='center', va='bottom', fontsize=12)
+    plt.xticks(range(len(group_labels)), ['Ground-truth (1)', 'Predicted (2)', 'Non-driver (0)', 'Other (3)'])
+    plt.xlabel('Gene Groups', fontsize=14)
+    plt.ylabel('Average Score', fontsize=14)
+    plt.title('Average Scores for Each Gene Group', fontsize=16)
+    plt.grid(axis='y', linestyle='--', alpha=0.6)
+    plt.tight_layout()
 
-        if len(precisions) == 0:
-            return 0.0
-
-        return np.mean(precisions)
-    
-    initial_map = compute_map(pos_score, neg_score)
-    error_range = bootstrap_confidence_interval(compute_map, pos_score, neg_score, n_bootstraps, confidence_level)
-    
-    return initial_map, error_range
-
-# Helper function to perform bootstrap resampling and calculate error range
-def bootstrap_confidence_interval(metric_func, pos_score, neg_score, n_bootstraps=1000, confidence_level=0.95):
-    metric_scores = []
-    for _ in range(n_bootstraps):
-        pos_sampled = resample(pos_score.numpy())
-        neg_sampled = resample(neg_score.numpy())
-        metric_scores.append(metric_func(torch.tensor(pos_sampled), torch.tensor(neg_sampled)))
-    
-    lower_bound = np.percentile(metric_scores, ((1 - confidence_level) / 2) * 100)
-    upper_bound = np.percentile(metric_scores, (confidence_level + (1 - confidence_level) / 2) * 100)
-    error_range = (upper_bound - lower_bound) / 2
-    
-    return error_range
-
-    
-def plot_scores(epochs, train_f1_scores, val_f1_scores, train_focal_loss_scores, val_focal_loss_scores, train_auc_scores, val_auc_scores, 
-                train_map_scores, val_map_scores, train_recall_scores, val_recall_scores,
-                train_acc_scores, val_acc_scores, train_precision_scores, val_precision_scores,
-                output_path, args):
-
-    # Ensure the output directory exists
-    os.makedirs(output_path, exist_ok=True)
-
-    ##plt.figure(figsize=(15, 5))
-
-    ##plt.subplot(1, 2, 1)
-    plt.figure()
-    plt.plot(epochs, train_f1_scores, label='Training F1 Score')
-    plt.plot(epochs, val_f1_scores, label='Validation F1 Score')
-    plt.xlabel('Epochs')
-    plt.ylabel('F1 Score')
-    plt.title('Training and Validation F1 Scores over Epochs')
-    plt.legend()
-    ##plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
-    plt.savefig(os.path.join(output_path, f'f1_head{args.num_heads}_dim{args.out_feats}_lay{args.num_layers}_epo{args.epochs}.png'))
-
-    ##plt.figure(figsize=(15, 5))
-
-    ##plt.subplot(1, 2, 1)
-    plt.figure()
-    plt.plot(epochs, train_focal_loss_scores, label='Training FocalLoss Score')
-    plt.plot(epochs, val_focal_loss_scores, label='Validation FocalLoss Score')
-    plt.xlabel('Epochs')
-    plt.ylabel('FocalLoss Score')
-    plt.title('Training and Validation FocalLoss Scores over Epochs')
-    plt.legend()
-    ##plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
-    plt.savefig(os.path.join(output_path, f'loss_head{args.num_heads}_dim{args.out_feats}_lay{args.num_layers}_epo{args.epochs}.png'))
-    
-    ##plt.figure(figsize=(15, 5))
-
-    ##plt.subplot(1, 2, 1)
-    plt.figure()
-    plt.plot(epochs, train_auc_scores, label='Training AUC')
-    plt.plot(epochs, val_auc_scores, label='Validation AUC')
-    plt.xlabel('Epochs')
-    plt.ylabel('AUC')
-    plt.title('Training and Validation AUC over Epochs')
-    plt.legend()
-    ##plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
-    plt.savefig(os.path.join(output_path, f'auc_head{args.num_heads}_dim{args.out_feats}_lay{args.num_layers}_epo{args.epochs}.png'))
-
-    ##plt.figure(figsize=(15, 5))
-
-    ##plt.subplot(1, 2, 1)
-    plt.figure()
-    plt.plot(epochs, train_map_scores, label='Training mAP')
-    plt.plot(epochs, val_map_scores, label='Validation mAP')
-    plt.xlabel('Epochs')
-    plt.ylabel('mAP')
-    plt.title('Training and Validation mAP over Epochs')
-    plt.legend()
-    ##plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
-    plt.savefig(os.path.join(output_path, f'mAP_head{args.num_heads}_dim{args.out_feats}_lay{args.num_layers}_epo{args.epochs}.png'))
-
-
-    ##plt.figure(figsize=(15, 5))
-
-    ##plt.subplot(1, 2, 1)
-    plt.figure()
-    plt.plot(epochs, train_recall_scores, label='Training Recall')
-    plt.plot(epochs, val_recall_scores, label='Validation Recall')
-    plt.xlabel('Epochs')
-    plt.ylabel('Recall')
-    plt.title('Training and Validation Recall over Epochs')
-    plt.legend()
-    ##plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
-    plt.savefig(os.path.join(output_path, f'recall_head{args.num_heads}_dim{args.out_feats}_lay{args.num_layers}_epo{args.epochs}.png'))
-
-
-    ##plt.figure(figsize=(15, 5))
-
-    ##plt.subplot(1, 2, 1)
-    plt.figure()
-    plt.plot(epochs, train_acc_scores, label='Training Accuracy')
-    plt.plot(epochs, val_acc_scores, label='Validation Accuracy')
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Training and Validation Accuracy over Epochs')
-    plt.legend()
-    ##plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
-    plt.savefig(os.path.join(output_path, f'acc_head{args.num_heads}_dim{args.out_feats}_lay{args.num_layers}_epo{args.epochs}.png'))
-    ##plt.figure(figsize=(15, 5))
-
-    ##plt.subplot(1, 2, 1)
-    plt.figure()
-    plt.plot(epochs, train_precision_scores, label='Training Precision')
-    plt.plot(epochs, val_precision_scores, label='Validation Precision')
-    plt.xlabel('Epochs')
-    plt.ylabel('Precision')
-    plt.title('Training and Validation Precision over Epochs')
-    plt.legend()
-    ##plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
-    plt.savefig(os.path.join(output_path, f'precision_head{args.num_heads}_dim{args.out_feats}_lay{args.num_layers}_epo{args.epochs}.png'))
-
+    bar_plot_path = os.path.join(
+        'gat/results/gene_prediction/',
+        f'{args.model_type}_{args.net_type}_group_avg_scores_barplot_epo{args.num_epochs}_2048.png'
+    )
+    plt.savefig(bar_plot_path)
+    print(f"Bar plot saved to {bar_plot_path}")
     plt.show()
 
+    '''
+    
+    # Convert gene_labels to NumPy array
+    ##gene_labels = gene_labels.cpu().numpy()
+
+    # Calculate average scores for each group in order of label 1, 2, 0, 3
+    group_labels = [1, 2, 0, 3]  # Define the groups in the desired order
+    average_scores = [np.mean(scores[gene_labels == label]) if (gene_labels == label).sum() > 0 else 0.0
+                    for label in group_labels]
+
+    p_values = {}
+    for g1, g2 in [(1, 2), (1, 0), (1, 3)]:
+        scores1 = scores[gene_labels == g1]
+        scores2 = scores[gene_labels == g2]
+        p_values[(g1, g2)] = ttest_ind(scores1, scores2, equal_var=False).pvalue if len(scores1) > 1 and len(scores2) > 1 else np.nan
+
+    # Save averages and p-values
+    avg_csv_path = os.path.join('gat/results/gene_prediction/',
+                                f'{args.model_type}_avg_scores_pvalues.csv')
+    with open(avg_csv_path, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['Group Label', 'Average Score', 'Comparison', 'P-Value'])
+        for label, avg_score in zip(group_labels, average_scores):
+            writer.writerow([f'Group {label}', avg_score, '', ''])
+        for (g1, g2), p_val in p_values.items():
+            writer.writerow(['', '', f'Group {g1} vs Group {g2}', p_val])
+    print(f"Average scores and p-values saved to {avg_csv_path}")
+
+    # Plot average scores
+    plt.figure(figsize=(8, 6))
+    bars = plt.bar(range(len(group_labels)), average_scores,
+                   color=['green', 'red', 'blue', 'orange'], edgecolor='black', alpha=0.8)
+    for bar, avg in zip(bars, average_scores):
+        plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f'{avg:.4f}',
+                 ha='center', va='bottom', fontsize=12)
+    plt.xticks(range(len(group_labels)), ['Ground-truth (1)', 'Predicted (2)', 'Non-driver (0)', 'Other (3)'])
+    plt.xlabel('Gene Groups', fontsize=14)
+    plt.ylabel('Average Score', fontsize=14)
+    plt.title('Average Scores by Gene Group', fontsize=16)
+    plt.grid(axis='y', linestyle='--', alpha=0.6)
+    plt.tight_layout()
+
+    bar_plot_path = os.path.join('gat/results/gene_prediction/',
+                                 f'{args.model_type}_group_avg_scores.png')
+    plt.savefig(bar_plot_path)
+    print(f"Bar plot saved to {bar_plot_path}")
+    plt.show()'''
+
+def plot_and_analyze(args):
+    # File path for the saved predictions
+    csv_file_path = os.path.join(
+        'gat/results/gene_prediction/',
+        f'{args.model_type}_{args.net_type}_predicted_scores_threshold{args.score_threshold}_epo{args.num_epochs}.csv'
+    )
+
+    results = []
+
+    # Read the CSV file
+    with open(csv_file_path, mode='r') as file:
+        reader = csv.reader(file)
+        next(reader)  # Skip header
+        for row in reader:
+            node_name, score, label = row
+            score = float(score)
+            label = int(label)
+            results.append((node_name, score, label))
+    
+    # Extract scores and labels as NumPy arrays
+    scores = np.array([row[1] for row in results])
+    labels = np.array([row[2] for row in results])
+    
+    # Define group labels in the desired order
+    group_labels = [1, 2, 0, 3]
+    average_scores = []
+
+    # Calculate average scores for each group
+    for label in group_labels:
+        group_scores = scores[labels == label]
+        avg_score = np.mean(group_scores) if len(group_scores) > 0 else 0.0
+        average_scores.append(avg_score)
+
+    # Perform statistical tests to calculate p-values
+    p_values = {}
+    comparisons = [(1, 2), (1, 0), (1, 3), (2, 3)]  # Added (2 vs. 3)
+    for group1, group2 in comparisons:
+        scores1 = scores[labels == group1]
+        scores2 = scores[labels == group2]
+        if len(scores1) > 1 and len(scores2) > 1:
+            _, p_value = ttest_ind(scores1, scores2, equal_var=False)
+            p_values[(group1, group2)] = p_value
+        else:
+            p_values[(group1, group2)] = np.nan
+
+    # Save average scores and p-values to another CSV
+    avg_csv_path = os.path.join(
+        'gat/results/gene_prediction/',
+        f'{args.model_type}_{args.net_type}_group_avg_scores_pvalues_threshold{args.score_threshold}_epo{args.num_epochs}_2048.csv'
+    )
+    os.makedirs(os.path.dirname(avg_csv_path), exist_ok=True)
+    with open(avg_csv_path, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['Group Label', 'Average Score', 'Comparison', 'P-Value'])
+        for label, avg_score in zip(group_labels, average_scores):
+            writer.writerow([f'Group {label}', avg_score, '', ''])
+        for (group1, group2), p_value in p_values.items():
+            writer.writerow(['', '', f'Group {group1} vs Group {group2}', p_value])
+    
+    print(f"Average scores and p-values saved to {avg_csv_path}")
+
+    # Plot the bar chart
+    plt.figure(figsize=(8, 6))
+    bars = plt.bar(range(len(group_labels)), average_scores,
+                   color=['green', 'red', 'blue', 'orange'], edgecolor='black', alpha=0.8)
+    for bar, avg_score in zip(bars, average_scores):
+        plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f'{avg_score:.4f}',
+                 ha='center', va='bottom', fontsize=12)
+    plt.xticks(range(len(group_labels)), ['Ground-truth (1)', 'Predicted (2)', 'Non-driver (0)', 'Other (3)'])
+    plt.xlabel('Gene Groups', fontsize=14)
+    plt.ylabel('Average Score', fontsize=14)
+    plt.title('Average Scores for Each Gene Group', fontsize=16)
+    plt.grid(axis='y', linestyle='--', alpha=0.6)
+    plt.tight_layout()
+
+    # Save the bar plot
+    bar_plot_path = os.path.join(
+        'gat/results/gene_prediction/',
+        f'{args.model_type}_{args.net_type}_group_avg_scores_barplot_threshold{args.score_threshold}_epo{args.num_epochs}_2048.png'
+    )
+    plt.savefig(bar_plot_path)
+    print(f"Bar plot saved to {bar_plot_path}")
+    plt.show()
+
+def save_and_plot_results(predicted_above, predicted_below, degrees_above, degrees_below, avg_above, avg_below, avg_error_above, avg_error_below, args):
+
+    # Save predictions and degrees
+    output_dir = 'gat/results/gene_prediction/'
+    os.makedirs(output_dir, exist_ok=True)
+
+    def save_csv(data, filename, header):
+        filepath = os.path.join(output_dir, filename)
+        with open(filepath, 'w', newline='') as csvfile:
+            csvwriter = csv.writer(csvfile)
+            csvwriter.writerow(header)
+            csvwriter.writerows(data)
+        print(f"File saved: {filepath}")
+
+    save_csv(predicted_above, f'{args.model_type}_{args.net_type}_above_threshold.csv', ['Gene', 'Score'])
+    save_csv(predicted_below, f'{args.model_type}_{args.net_type}_below_threshold.csv', ['Gene', 'Score'])
+    save_csv(degrees_above.items(), f'{args.model_type}_{args.net_type}_degrees_above.csv', ['Gene', 'Degree'])
+    save_csv(degrees_below.items(), f'{args.model_type}_{args.net_type}_degrees_below.csv', ['Gene', 'Degree'])
+
+    # Degree comparison barplot with error bars
+    data = pd.DataFrame({
+        'Threshold': ['Above', 'Below'],
+        'Average Degree': [avg_above, avg_below],
+        'Error': [avg_error_above, avg_error_below]  # Add error values
+    })
+    
+    plt.figure(figsize=(8, 6))
+    bars = plt.bar(data['Threshold'], data['Average Degree'], yerr=data['Error'], capsize=5, color=['green', 'red'], edgecolor='black', alpha=0.8)
+
+    # Add error bars explicitly (optional, can be done directly in the bar plot)
+    for bar, error in zip(bars, data['Error']):
+        plt.errorbar(bar.get_x() + bar.get_width() / 2, bar.get_height(), yerr=error, fmt='none', color='black', capsize=5, linestyle='--')
+
+    plt.title('Average Degree Comparison with Error Bars')
+    plt.savefig(os.path.join(output_dir, f'{args.model_type}_{args.net_type}_degree_comparison_with_error_bars.png'))
+    plt.show()
+    print(f"Degree comparison plot saved to {os.path.join(output_dir, f'{args.model_type}_{args.net_type}_degree_comparison_with_error_bars.png')}")

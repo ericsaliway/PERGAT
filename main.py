@@ -1,25 +1,23 @@
 import argparse
-from src.data_loader import load_graph_data
-from src.train import train_and_evaluate
+import torch
+##from src.data_loader import load_graph_data
+from src.train import train, plot_and_analyze
 
 if __name__ == "__main__":
     # Argument parser setup
-    parser = argparse.ArgumentParser(description='MLP Predictor')
-    parser.add_argument('--in-feats', type=int, default=128, help='Dimension of the first layer')
-    parser.add_argument('--out-feats', type=int, default=128, help='Dimension of the final layer')
-    parser.add_argument('--num-heads', type=int, default=8, help='Number of heads')
-    parser.add_argument('--num-layers', type=int, default=2, help='Number of layers')
-    parser.add_argument('--epochs', type=int, default=200, help='Number of epochs for training')
-    parser.add_argument('--lr', type=float, default=0.01, help='Learning rate for the optimizer')
-    parser.add_argument('--input-size', type=int, default=2, help='Input size for the first linear layer')
-    parser.add_argument('--hidden-size', type=int, default=16, help='Hidden size for the first linear layer')
-    parser.add_argument('--feat-drop', type=float, default=0.5, help='Feature dropout rate')
-    parser.add_argument('--attn-drop', type=float, default=0.5, help='Attention dropout rate')
+    parser = argparse.ArgumentParser(description="GNN-based driver gene prediction")
+    parser.add_argument('--in_feats', type=int, default=2048)
+    parser.add_argument('--hidden_feats', type=int, default=1024)
+    parser.add_argument('--out_feats', type=int, default=1)
+    parser.add_argument('--learning_rate', type=float, default=0.001)
+    parser.add_argument('--num_epochs', type=int, default=100)
+    parser.add_argument('--model_type', type=str, choices=['GraphSAGE', 'GAT', 'GCN', 'GIN', 'Chebnet', 'HGDC', 'EMOGI', 'MTGCN', 'ACGNN'], required=True)
+    parser.add_argument('--net_type', type=str, choices=['CPDB', 'STRING', 'HIPPIE'], required=False)
+    parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
+    parser.add_argument('--score_threshold', type=float, default=0.99)
     args = parser.parse_args()
-
-    G_dgl, node_features, node_id_to_name = load_graph_data('data/miRNA_disease_embeddings_dbDEMC.json')
-    train_and_evaluate(args, G_dgl, node_features, node_id_to_name)
-
     
+    train(args)
+    plot_and_analyze(args)
 
-## PERGAT % python main.py --in-feats 256 --out-feats 256 --num-heads 8 --num-layers 2 --lr 0.001 --input-size 2 --hidden-size 16 --feat-drop 0.5 --attn-drop 0.5 --epochs 114    
+## python __ACGNN/main.py --model_type ACGNN --net_type CPDB --score_threshold 0.99 --in_feats 2048 --hidden_feats 1024 --learning_rate 0.001 --num_epochs 5
